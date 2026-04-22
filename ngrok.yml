@@ -1,0 +1,15 @@
+version: "3"
+
+# Fall Detection System — ngrok tunnel config
+#
+# SETUP (chỉ làm 1 lần):
+#   1. Đăng ký tại https://ngrok.com và lấy authtoken
+#   2. Chạy: ngrok config add-authtoken <YOUR_TOKEN>
+#
+# CÁCH DÙNG:
+#   npm run share    ← build + start production server + mở tunnel
+
+tunnels:
+  fall-detection:
+    addr: 3000
+    proto: http

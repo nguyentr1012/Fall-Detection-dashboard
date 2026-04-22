@@ -1,0 +1,82 @@
+import type { IMUBatch, Alert } from "@/src/types";
+
+type BatchCallback = (batch: IMUBatch) => void;
+type AlertCallback = (alert: Alert) => void;
+
+/**
+ * tODO: thay thế bằng MQTT client thật
+ */
+class MqttClientManager{
+    private mockInterval: ReturnType<typeof setInterval>|null = null;
+    private batchCallbacks = new Map<string, BatchCallback[]>();
+    private alertCallbacks = new Map<string, AlertCallback[]>();
+    public isConnected = false;
+    private isMock = process.env.NEXT_PUBLIC_MOCK_MQTT === 'true';
+
+/**
+     * Kết nối đến MQTT broker
+     * đang là mock, sẽ tạo dữ liệu giả để test, sửa đúng dữ liệu thực sau
+     * @param deviceId - ID của thiết bị
+ */
+connect(deviceId: string){
+    if(this.isMock){
+        this.startMock(deviceId)
+    }
+    this.isConnected = true;
+}
+/**
+ * Tạo dữ liệu giả để test, sửa đúng dữ liệu thực sau
+ *
+ */
+private startMock(deviceId: string){
+    if (this.mockInterval) return
+    let t = 0
+    this.mockInterval = setInterval(() => {
+      const now = Date.now()
+      const samples = Array.from({ length: 50 }, (_, i) => ({
+        timestamp: now - (49 - i) * 10,
+        ax: 0.1 * Math.sin(2 * Math.PI * (t + i) / 50) + (Math.random() - 0.5) * 0.05,
+        ay: 0.05 * Math.cos(2 * Math.PI * (t + i) / 50) + (Math.random() - 0.5) * 0.05,
+        az: 1.0 + (Math.random() - 0.5) * 0.1,
+        gx: 20 * Math.sin(2 * Math.PI * (t + i) / 100) + (Math.random() - 0.5) * 5,
+        gy: 15 * Math.cos(2 * Math.PI * (t + i) / 100) + (Math.random() - 0.5) * 5,
+        gz: (Math.random() - 0.5) * 10,
+      }))
+      t += 50
+      const batch: IMUBatch = { deviceId, batchId: crypto.randomUUID(), startTimestamp: now, samples }
+      this.batchCallbacks.get(deviceId)?.forEach(cb => cb(batch))
+      
+      // Fake fall alert every 60s
+      if (t % 12000 === 0) {
+        const alert: Alert = {
+          id: crypto.randomUUID(), deviceId, deviceName: 'Mock Device',
+          severity: 'critical', type: 'fall_detected',
+          message: 'Phát hiện té ngã (mock)', timestamp: new Date().toISOString(), acknowledged: false,
+        }
+        this.alertCallbacks.get(deviceId)?.forEach(cb => cb(alert))
+      }
+    }, 500)}
+
+    subscribe(deviceId: string, onBatch: BatchCallback, onAlert?: AlertCallback) {
+        this.batchCallbacks.set(deviceId, [...(this.batchCallbacks.get(deviceId) || []), onBatch])
+        if (onAlert) this.alertCallbacks.set(deviceId, [...(this.alertCallbacks.get(deviceId) || []), onAlert])
+      }
+    
+      unsubscribe(deviceId: string) {
+        this.batchCallbacks.delete(deviceId)
+        this.alertCallbacks.delete(deviceId)
+      }
+    
+      disconnect() {
+        if (this.mockInterval) { clearInterval(this.mockInterval); this.mockInterval = null }
+        this.isConnected = false
+      }
+}
+let _instance: MqttClientManager | null = null
+export function getMqttClient(): MqttClientManager {
+  if (typeof window === 'undefined') throw new Error('MQTT client is browser-only')
+  if (!_instance) _instance = new MqttClientManager()
+  return _instance
+}
+
+    
