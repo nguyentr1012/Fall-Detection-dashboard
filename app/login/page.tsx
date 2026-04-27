@@ -14,19 +14,19 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    setLoading(false)
-    if (error) {
-      setError('Email hoặc mật khẩu không đúng.')
-      return
-    }
-    // refresh() cập nhật server-side session trước khi navigate
-    router.refresh()
-    router.push('/')
+    // e.preventDefault()
+    // setError(null)
+    // setLoading(true)
+    // const supabase = createClient()
+    // const { error } = await supabase.auth.signInWithPassword({ email, password })
+    // setLoading(false)
+    // if (error) {
+    //   setError('Email hoặc mật khẩu không đúng.')
+    //   return
+    // }
+    // // refresh() cập nhật server-side session trước khi navigate
+    // router.refresh()
+    // router.push('/')
   }
 
   return (

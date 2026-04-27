@@ -1,8 +1,7 @@
 'use client'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { createClient } from '@/lib/supabase'
 import {
   LayoutDashboard,
   Users,
@@ -26,13 +25,6 @@ interface Props {
 
 export function Sidebar({ isOpen }: Props) {
   const pathname = usePathname()
-  const router = useRouter()
-
-  async function handleLogout() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
 
   return (
     <aside
@@ -86,10 +78,7 @@ export function Sidebar({ isOpen }: Props) {
           EMERGENCY
         </button>
 
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-gray-500 hover:bg-gray-50 transition-colors"
-        >
+        <div className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-gray-500">
           <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-600 shrink-0">
             NS
           </div>
@@ -97,7 +86,7 @@ export function Sidebar({ isOpen }: Props) {
             <p className="text-xs font-medium text-gray-700 truncate">North Wing Station</p>
             <p className="text-[10px] text-gray-400 uppercase">Supervisor</p>
           </div>
-        </button>
+        </div>
       </div>
     </aside>
   )
