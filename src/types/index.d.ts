@@ -9,7 +9,7 @@ export interface IMUSample{
 export interface IMUBatch{
     deviceId: string;
     batchId: string;
-    startTimestamp: number; 
+    startTimestamp: number;
     samples: IMUSample[]; //50 samples(100Hz * 0.5s)
 }
 
@@ -26,23 +26,31 @@ export interface Alert{
 
 export interface Device{
     id: string;
-    name: string;
+    name: string;        // wearer full_name, fallback "Chưa gán"
     model: string;
     status: 'online' | 'offline';
-    lastSeen: string; // ISO
+    lastSeen: string;    // ISO
     lastAlert: Alert | null;
     firmwareVersion: string;
-    ipAddress?: string;
-    location: string;
+    location: string;    // device_id as fallback
+    batteryLevel?: number; // 0–100, comes from MQTT telemetry
+}
+
+export interface WearerInfo {
+    id: string;
+    full_name: string;
+    height_cm: number;
 }
 
 export interface DeviceConfig{
     deviceId: string;
-    name: string;
-    samplingRate: 50| 100| 200;
+    name: string;        // wearer full_name
+    samplingRate: 50 | 100 | 200;
     fallThreshold: number;
-    transmitInterval: number; //seconds
+    transmitInterval: number;
     alertEnabled: boolean;
+    wearerName?: string; // wearer full_name (editable)
+    heightCm?: number;   // wearer height_cm (editable)
 }
 
 export interface RecordingSession {
@@ -52,8 +60,8 @@ export interface RecordingSession {
     endTimestamp: number
     sampleCount: number
     samples: IMUSample[]
-  }
-  
-  // Chart types (downsampled, 10Hz)
-  export interface AccelChartPoint { t: number; ax: number; ay: number; az: number; svm: number }
-  export interface GyroChartPoint  { t: number; gx: number; gy: number; gz: number }
+}
+
+// Chart types (downsampled, 10Hz)
+export interface AccelChartPoint { t: number; ax: number; ay: number; az: number; svm: number }
+export interface GyroChartPoint  { t: number; gx: number; gy: number; gz: number }

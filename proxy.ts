@@ -1,18 +1,48 @@
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-export function proxy(request: NextRequest) {
-  const response = NextResponse.next()
+export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl
 
-  // Bypass ngrok browser warning cho tất cả XHR/fetch request từ app
+  let response = NextResponse.next({ request })
+
+  // Ngrok bypass header
   response.headers.set('ngrok-skip-browser-warning', 'true')
-  // Cho phép cross-origin iframe embed (nếu cần)
   response.headers.set('Access-Control-Allow-Origin', '*')
+
+  // Public routes — skip auth check
+  if (pathname === '/login' || pathname.startsWith('/_next') || pathname.startsWith('/api')) {
+    return response
+  }
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll: () => request.cookies.getAll(),
+        setAll: (cookiesToSet) => {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          response = NextResponse.next({ request })
+          response.headers.set('ngrok-skip-browser-warning', 'true')
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+
+  const { data: { session } } = await supabase.auth.getSession()
+
+  if (!session) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
 
   return response
 }
 
 export const config = {
-  // Áp dụng cho tất cả routes trừ static assets
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }

@@ -1,49 +1,162 @@
+import { createClient } from '@/lib/supabase'
 import type { Device, Alert, DeviceConfig, RecordingSession } from '@/src/types'
 
-const delay = (ms = 200) => new Promise(r => setTimeout(r, ms))
-/**
- * Dữ liệu giả để test, sửa đúng dữ liệu thực sau
- */
-const MOCK_DEVICES: Device[] = [
-  { id: 'd1', name: 'Cảm biến Phòng Khách', model: 'MPU-6050', status: 'online',
-    lastSeen: new Date().toISOString(), lastAlert: null, firmwareVersion: '1.2.3', location: 'Phòng Khách' },
-  { id: 'd2', name: 'Cảm biến Phòng Ngủ', model: 'MPU-6050', status: 'online',
-    lastSeen: new Date().toISOString(), lastAlert: null, firmwareVersion: '1.2.1', location: 'Phòng Ngủ' },
-  { id: 'd3', name: 'Cảm biến Nhà Tắm', model: 'ICM-42688', status: 'online',
-    lastSeen: new Date().toISOString(), lastAlert: null, firmwareVersion: '1.3.0', location: 'Nhà Tắm' },
-  { id: 'd4', name: 'Cảm biến Bếp', model: 'MPU-6050', status: 'offline',
-    lastSeen: new Date(Date.now() - 3600_000).toISOString(), lastAlert: null, firmwareVersion: '1.1.0', location: 'Bếp' },
-]
-
-const MOCK_ALERTS: Alert[] = Array.from({ length: 15 }, (_, i) => ({
-  id: `a${i}`, deviceId: MOCK_DEVICES[i % 3].id, deviceName: MOCK_DEVICES[i % 3].name,
-  severity: i % 5 === 0 ? 'critical' : i % 3 === 0 ? 'warning' : 'info',
-  type: i % 5 === 0 ? 'fall_detected' : i % 3 === 0 ? 'low_battery' : 'connection_lost',
-  message: i % 5 === 0 ? `Phát hiện té ngã, độ tin cậy ${80 + i}%` : `Cảnh báo #${i}`,
-  timestamp: new Date(Date.now() - i * 600_000).toISOString(), acknowledged: i > 5,
-}))
+function mapAlert(row: Record<string, unknown>): Alert {
+  return {
+    id: row.id as string,
+    deviceId: row.device_id as string,
+    deviceName: (row.device_id as string),
+    severity: row.severity as Alert['severity'],
+    type: row.type as Alert['type'],
+    message: (row.message as string | null) ?? '',
+    timestamp: row.created_at as string,
+    acknowledged: (row.acknowledged as boolean | null) ?? false,
+  }
+}
 
 export const api = {
-  getDevices: async (): Promise<Device[]> => { await delay(); return MOCK_DEVICES },
+  getDevices: async (): Promise<Device[]> => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('devices')
+      .select('device_id, firmware_version, model, is_active, last_seen, wearers!current_wearer_id(id, full_name, height_cm)')
+    if (error) throw error
+    return (data ?? []).map(d => {
+      const wearer = (d as Record<string, unknown>).wearers as { full_name: string } | null
+      return {
+        id: d.device_id,
+        name: wearer?.full_name ?? 'Chưa gán',
+        model: d.model ?? 'MPU-6050',
+        status: d.is_active ? 'online' : 'offline',
+        lastSeen: d.last_seen ?? new Date().toISOString(),
+        lastAlert: null,
+        firmwareVersion: d.firmware_version ?? '1.0.0',
+        location: d.device_id,
+      } as Device
+    })
+  },
+
   getDevice: async (id: string): Promise<Device> => {
-    await delay(); return MOCK_DEVICES.find(d => d.id === id) ?? MOCK_DEVICES[0]
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('devices')
+      .select('device_id, firmware_version, model, is_active, last_seen, wearers!current_wearer_id(id, full_name, height_cm)')
+      .eq('device_id', id)
+      .single()
+    if (error) throw error
+    const wearer = (data as Record<string, unknown>).wearers as { full_name: string } | null
+    return {
+      id: data.device_id,
+      name: wearer?.full_name ?? 'Chưa gán',
+      model: data.model ?? 'MPU-6050',
+      status: data.is_active ? 'online' : 'offline',
+      lastSeen: data.last_seen ?? new Date().toISOString(),
+      lastAlert: null,
+      firmwareVersion: data.firmware_version ?? '1.0.0',
+      location: data.device_id,
+    } as Device
   },
+
   getAlerts: async (limit = 20): Promise<Alert[]> => {
-    await delay(); return MOCK_ALERTS.slice(0, limit)
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('alerts')
+      .select('id, device_id, severity, type, message, acknowledged, created_at')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    if (error) throw error
+    return (data ?? []).map(row => mapAlert(row as Record<string, unknown>))
   },
+
   getDeviceAlerts: async (deviceId: string, limit = 20): Promise<Alert[]> => {
-    await delay(); return MOCK_ALERTS.filter(a => a.deviceId === deviceId).slice(0, limit)
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('alerts')
+      .select('id, device_id, severity, type, message, acknowledged, created_at')
+      .eq('device_id', deviceId)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    if (error) throw error
+    return (data ?? []).map(row => mapAlert(row as Record<string, unknown>))
   },
+
   getDeviceConfig: async (deviceId: string): Promise<DeviceConfig> => {
-    await delay()
-    return { deviceId, name: MOCK_DEVICES.find(d => d.id === deviceId)?.name ?? 'Device',
-      samplingRate: 100, fallThreshold: 2.5, transmitInterval: 500, alertEnabled: true }
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('device_configs')
+      .select(`
+        device_id, sampling_rate, fall_threshold, transmit_interval, alert_enabled,
+        devices!device_configs_device_id_fkey(
+          current_wearer_id,
+          wearers!current_wearer_id(full_name, height_cm)
+        )
+      `)
+      .eq('device_id', deviceId)
+      .single()
+    if (error) throw error
+    const device = (data as Record<string, unknown>).devices as Record<string, unknown> | null
+    const wearer = device?.wearers as { full_name: string; height_cm: number } | null
+    return {
+      deviceId: data.device_id,
+      name: wearer?.full_name ?? 'Chưa gán',
+      samplingRate: data.sampling_rate as 50 | 100 | 200,
+      fallThreshold: data.fall_threshold,
+      transmitInterval: data.transmit_interval,
+      alertEnabled: data.alert_enabled,
+      wearerName: wearer?.full_name,
+      heightCm: wearer?.height_cm,
+    }
   },
+
   updateDeviceConfig: async (deviceId: string, config: Partial<DeviceConfig>): Promise<DeviceConfig> => {
-    await delay(300); return { deviceId, name: 'Device', samplingRate: 100,
-      fallThreshold: 2.5, transmitInterval: 500, alertEnabled: true, ...config }
+    const supabase = createClient()
+
+    const configPatch: Record<string, unknown> = {}
+    if (config.samplingRate !== undefined) configPatch.sampling_rate = config.samplingRate
+    if (config.fallThreshold !== undefined) configPatch.fall_threshold = config.fallThreshold
+    if (config.transmitInterval !== undefined) configPatch.transmit_interval = config.transmitInterval
+    if (config.alertEnabled !== undefined) configPatch.alert_enabled = config.alertEnabled
+
+    if (Object.keys(configPatch).length > 0) {
+      const { error } = await supabase.from('device_configs').update(configPatch).eq('device_id', deviceId)
+      if (error) throw error
+    }
+
+    if (config.wearerName !== undefined || config.heightCm !== undefined) {
+      const { data: deviceRow } = await supabase
+        .from('devices').select('current_wearer_id').eq('device_id', deviceId).single()
+      if (deviceRow?.current_wearer_id) {
+        const wearerPatch: Record<string, unknown> = {}
+        if (config.wearerName !== undefined) wearerPatch.full_name = config.wearerName
+        if (config.heightCm !== undefined) wearerPatch.height_cm = config.heightCm
+        const { error } = await supabase.from('wearers').update(wearerPatch).eq('id', deviceRow.current_wearer_id)
+        if (error) throw error
+      }
+    }
+
+    return api.getDeviceConfig(deviceId)
   },
-  saveRecordingSession: async (_session: RecordingSession): Promise<{ id: string }> => {
-    await delay(500); return { id: crypto.randomUUID() }
+
+  acknowledgeAlert: async (alertId: string): Promise<void> => {
+    const supabase = createClient()
+    const { error } = await supabase.from('alerts').update({ acknowledged: true }).eq('id', alertId)
+    if (error) throw error
+  },
+
+  saveRecordingSession: async (session: RecordingSession): Promise<{ id: string }> => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('recording_sessions')
+      .insert({
+        device_id: session.deviceId,
+        label: session.label,
+        start_timestamp: session.startTimestamp,
+        end_timestamp: session.endTimestamp,
+        sample_count: session.sampleCount,
+      })
+      .select('id')
+      .single()
+    if (error) throw error
+    return { id: data.id }
   },
 }
