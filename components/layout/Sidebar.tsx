@@ -9,6 +9,7 @@ import {
   Bell,
   Settings,
   Diamond,
+  LogOut,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -78,14 +79,27 @@ export function Sidebar({ isOpen }: Props) {
           EMERGENCY
         </button>
 
-        <div className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-gray-500">
-          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-600 shrink-0">
-            NS
+        <div className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-gray-500 justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-600 shrink-0">
+              AD
+            </div>
+            <div className="min-w-0 text-left">
+              <p className="text-xs font-medium text-gray-700 truncate">Admin</p>
+              <p className="text-[10px] text-gray-400 uppercase">System Admin</p>
+            </div>
           </div>
-          <div className="min-w-0 text-left">
-            <p className="text-xs font-medium text-gray-700 truncate">North Wing Station</p>
-            <p className="text-[10px] text-gray-400 uppercase">Supervisor</p>
-          </div>
+          <button 
+            onClick={async () => {
+              const { logout } = await import('@/app/actions/auth')
+              await logout()
+              window.location.href = '/login'
+            }}
+            className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-600 rounded-md transition-colors"
+            title="Đăng xuất"
+          >
+            <LogOut className="size-4" />
+          </button>
         </div>
       </div>
     </aside>

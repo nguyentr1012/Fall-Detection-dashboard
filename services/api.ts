@@ -1,162 +1,211 @@
-import { createClient } from '@/lib/supabase'
+/**
+ * services/api.ts
+ * All data-fetching functions now go through the FastAPI backend
+ * via apiClient (Bearer token from HTTP-only cookie).
+ * Supabase has been fully removed.
+ */
+
+import { apiClient } from '@/lib/apiClient'
 import type { Device, Alert, DeviceConfig, RecordingSession } from '@/src/types'
 
-function mapAlert(row: Record<string, unknown>): Alert {
+// ---------------------------------------------------------------------------
+// Shape of raw responses from FastAPI (matching backend Pydantic schemas)
+// ---------------------------------------------------------------------------
+
+interface BackendWearer {
+  id: string
+  full_name: string
+  height_cm: number
+  org_id: string
+  created_at: string
+  updated_at: string
+}
+
+interface BackendDevice {
+  device_id: string
+  firmware_version: string | null
+  is_active: boolean
+  current_wearer_id: string | null
+  wearer: BackendWearer | null
+  created_at: string
+  updated_at: string
+}
+
+interface BackendAlert {
+  id: string
+  device_id: string
+  alert_type: string
+  confidence: number
+  is_resolved: boolean
+  created_at: string
+}
+
+// ---------------------------------------------------------------------------
+// Mapping helpers
+// ---------------------------------------------------------------------------
+
+function mapDevice(d: BackendDevice): Device {
   return {
-    id: row.id as string,
-    deviceId: row.device_id as string,
-    deviceName: (row.device_id as string),
-    severity: row.severity as Alert['severity'],
-    type: row.type as Alert['type'],
-    message: (row.message as string | null) ?? '',
-    timestamp: row.created_at as string,
-    acknowledged: (row.acknowledged as boolean | null) ?? false,
+    id: d.device_id,
+    name: d.wearer?.full_name ?? 'Chưa gán',
+    model: 'MPU-6050',
+    status: d.is_active ? 'online' : 'offline',
+    lastSeen: d.updated_at,
+    lastAlert: null,
+    firmwareVersion: d.firmware_version ?? '1.0.0',
+    location: d.device_id,
   }
 }
 
+function mapAlert(a: BackendAlert): Alert {
+  return {
+    id: String(a.id),
+    deviceId: a.device_id,
+    deviceName: a.device_id,
+    severity: 'critical',
+    type: 'fall_detected',
+    message: `Phát hiện té ngã (confidence: ${(a.confidence * 100).toFixed(0)}%)`,
+    timestamp: a.created_at,
+    acknowledged: a.is_resolved,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// API surface — mirrors the original shape so no consumer hooks change
+// ---------------------------------------------------------------------------
+
 export const api = {
+  // ── Devices ──────────────────────────────────────────────────────────────
+
   getDevices: async (): Promise<Device[]> => {
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('devices')
-      .select('device_id, firmware_version, model, is_active, last_seen, wearers!current_wearer_id(id, full_name, height_cm)')
-    if (error) throw error
-    return (data ?? []).map(d => {
-      const wearer = (d as Record<string, unknown>).wearers as { full_name: string } | null
-      return {
-        id: d.device_id,
-        name: wearer?.full_name ?? 'Chưa gán',
-        model: d.model ?? 'MPU-6050',
-        status: d.is_active ? 'online' : 'offline',
-        lastSeen: d.last_seen ?? new Date().toISOString(),
-        lastAlert: null,
-        firmwareVersion: d.firmware_version ?? '1.0.0',
-        location: d.device_id,
-      } as Device
-    })
+    const data = await apiClient.get<BackendDevice[]>('/api/v1/devices/')
+    return data.map(mapDevice)
   },
 
   getDevice: async (id: string): Promise<Device> => {
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('devices')
-      .select('device_id, firmware_version, model, is_active, last_seen, wearers!current_wearer_id(id, full_name, height_cm)')
-      .eq('device_id', id)
-      .single()
-    if (error) throw error
-    const wearer = (data as Record<string, unknown>).wearers as { full_name: string } | null
-    return {
-      id: data.device_id,
-      name: wearer?.full_name ?? 'Chưa gán',
-      model: data.model ?? 'MPU-6050',
-      status: data.is_active ? 'online' : 'offline',
-      lastSeen: data.last_seen ?? new Date().toISOString(),
-      lastAlert: null,
-      firmwareVersion: data.firmware_version ?? '1.0.0',
-      location: data.device_id,
-    } as Device
+    const data = await apiClient.get<BackendDevice>(`/api/v1/devices/${id}`)
+    return mapDevice(data)
   },
 
+  registerDevice: async (deviceId: string): Promise<Device> => {
+    const data = await apiClient.post<BackendDevice>('/api/v1/devices/', {
+      device_id: deviceId,
+      is_active: true,
+    })
+    return mapDevice(data)
+  },
+
+  assignDevice: async (deviceId: string, wearerId: string): Promise<Device> => {
+    const data = await apiClient.post<BackendDevice>(
+      `/api/v1/devices/${deviceId}/assign`,
+      { wearer_id: wearerId }
+    )
+    return mapDevice(data)
+  },
+
+  unassignDevice: async (deviceId: string): Promise<Device> => {
+    const data = await apiClient.post<BackendDevice>(
+      `/api/v1/devices/${deviceId}/unassign`
+    )
+    return mapDevice(data)
+  },
+
+  // ── Alerts / History ─────────────────────────────────────────────────────
+
   getAlerts: async (limit = 20): Promise<Alert[]> => {
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('alerts')
-      .select('id, device_id, severity, type, message, acknowledged, created_at')
-      .order('created_at', { ascending: false })
-      .limit(limit)
-    if (error) throw error
-    return (data ?? []).map(row => mapAlert(row as Record<string, unknown>))
+    const data = await apiClient.get<BackendAlert[]>(
+      `/api/v1/history/alerts?limit=${limit}`
+    )
+    return data.map(mapAlert)
   },
 
   getDeviceAlerts: async (deviceId: string, limit = 20): Promise<Alert[]> => {
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('alerts')
-      .select('id, device_id, severity, type, message, acknowledged, created_at')
-      .eq('device_id', deviceId)
-      .order('created_at', { ascending: false })
-      .limit(limit)
-    if (error) throw error
-    return (data ?? []).map(row => mapAlert(row as Record<string, unknown>))
-  },
-
-  getDeviceConfig: async (deviceId: string): Promise<DeviceConfig> => {
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('device_configs')
-      .select(`
-        device_id, sampling_rate, fall_threshold, transmit_interval, alert_enabled,
-        devices!device_configs_device_id_fkey(
-          current_wearer_id,
-          wearers!current_wearer_id(full_name, height_cm)
-        )
-      `)
-      .eq('device_id', deviceId)
-      .single()
-    if (error) throw error
-    const device = (data as Record<string, unknown>).devices as Record<string, unknown> | null
-    const wearer = device?.wearers as { full_name: string; height_cm: number } | null
-    return {
-      deviceId: data.device_id,
-      name: wearer?.full_name ?? 'Chưa gán',
-      samplingRate: data.sampling_rate as 50 | 100 | 200,
-      fallThreshold: data.fall_threshold,
-      transmitInterval: data.transmit_interval,
-      alertEnabled: data.alert_enabled,
-      wearerName: wearer?.full_name,
-      heightCm: wearer?.height_cm,
-    }
-  },
-
-  updateDeviceConfig: async (deviceId: string, config: Partial<DeviceConfig>): Promise<DeviceConfig> => {
-    const supabase = createClient()
-
-    const configPatch: Record<string, unknown> = {}
-    if (config.samplingRate !== undefined) configPatch.sampling_rate = config.samplingRate
-    if (config.fallThreshold !== undefined) configPatch.fall_threshold = config.fallThreshold
-    if (config.transmitInterval !== undefined) configPatch.transmit_interval = config.transmitInterval
-    if (config.alertEnabled !== undefined) configPatch.alert_enabled = config.alertEnabled
-
-    if (Object.keys(configPatch).length > 0) {
-      const { error } = await supabase.from('device_configs').update(configPatch).eq('device_id', deviceId)
-      if (error) throw error
-    }
-
-    if (config.wearerName !== undefined || config.heightCm !== undefined) {
-      const { data: deviceRow } = await supabase
-        .from('devices').select('current_wearer_id').eq('device_id', deviceId).single()
-      if (deviceRow?.current_wearer_id) {
-        const wearerPatch: Record<string, unknown> = {}
-        if (config.wearerName !== undefined) wearerPatch.full_name = config.wearerName
-        if (config.heightCm !== undefined) wearerPatch.height_cm = config.heightCm
-        const { error } = await supabase.from('wearers').update(wearerPatch).eq('id', deviceRow.current_wearer_id)
-        if (error) throw error
-      }
-    }
-
-    return api.getDeviceConfig(deviceId)
+    const data = await apiClient.get<BackendAlert[]>(
+      `/api/v1/history/alerts?device_id=${deviceId}&limit=${limit}`
+    )
+    return data.map(mapAlert)
   },
 
   acknowledgeAlert: async (alertId: string): Promise<void> => {
-    const supabase = createClient()
-    const { error } = await supabase.from('alerts').update({ acknowledged: true }).eq('id', alertId)
-    if (error) throw error
+    // Backend uses is_resolved field — PATCH on the alert
+    await apiClient.patch(`/api/v1/history/alerts/${alertId}/resolve`)
   },
 
+  // ── Wearers ──────────────────────────────────────────────────────────────
+
+  getWearers: async (): Promise<BackendWearer[]> => {
+    return apiClient.get<BackendWearer[]>('/api/v1/wearers/')
+  },
+
+  getWearer: async (id: string): Promise<BackendWearer> => {
+    return apiClient.get<BackendWearer>(`/api/v1/wearers/${id}`)
+  },
+
+  createWearer: async (payload: {
+    full_name: string
+    height_cm: number
+    org_id: string
+  }): Promise<BackendWearer> => {
+    return apiClient.post<BackendWearer>('/api/v1/wearers/', payload)
+  },
+
+  updateWearer: async (
+    id: string,
+    payload: { full_name?: string; height_cm?: number }
+  ): Promise<BackendWearer> => {
+    return apiClient.put<BackendWearer>(`/api/v1/wearers/${id}`, payload)
+  },
+
+  deleteWearer: async (id: string): Promise<void> => {
+    await apiClient.delete(`/api/v1/wearers/${id}`)
+  },
+
+  // ── Device Config (kept for backward-compat — maps to wearer update) ──────
+
+  getDeviceConfig: async (deviceId: string): Promise<DeviceConfig> => {
+    const device = await apiClient.get<BackendDevice>(`/api/v1/devices/${deviceId}`)
+    return {
+      deviceId: device.device_id,
+      name: device.wearer?.full_name ?? 'Chưa gán',
+      samplingRate: 100,
+      fallThreshold: 2.5,
+      transmitInterval: 500,
+      alertEnabled: true,
+      wearerName: device.wearer?.full_name,
+      heightCm: device.wearer?.height_cm,
+    }
+  },
+
+  updateDeviceConfig: async (
+    deviceId: string,
+    config: Partial<DeviceConfig>
+  ): Promise<DeviceConfig> => {
+    // If wearer fields changed, PATCH the wearer
+    const device = await apiClient.get<BackendDevice>(`/api/v1/devices/${deviceId}`)
+    if (device.wearer && (config.wearerName !== undefined || config.heightCm !== undefined)) {
+      await apiClient.put(`/api/v1/wearers/${device.wearer.id}`, {
+        ...(config.wearerName !== undefined && { full_name: config.wearerName }),
+        ...(config.heightCm !== undefined && { height_cm: config.heightCm }),
+      })
+    }
+    return api.getDeviceConfig(deviceId)
+  },
+
+  // ── Recording Session (Phase 1 — data collection) ────────────────────────
+
   saveRecordingSession: async (session: RecordingSession): Promise<{ id: string }> => {
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('recording_sessions')
-      .insert({
+    // Encode samples as JSON payload to backend (custom endpoint expected)
+    const data = await apiClient.post<{ id: string }>(
+      '/api/v1/data-collection/sessions',
+      {
         device_id: session.deviceId,
         label: session.label,
         start_timestamp: session.startTimestamp,
         end_timestamp: session.endTimestamp,
         sample_count: session.sampleCount,
-      })
-      .select('id')
-      .single()
-    if (error) throw error
-    return { id: data.id }
+        samples: session.samples,
+      }
+    )
+    return data
   },
 }
