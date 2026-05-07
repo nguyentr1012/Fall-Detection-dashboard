@@ -15,7 +15,7 @@ import {
 
 const NAV_ITEMS = [
   { label: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { label: 'Patients', href: '/patients', icon: Users },
+  { label: 'Wearers', href: '/wearers', icon: Users },
   { label: 'Data Collector', href: '/data-collection', icon: Activity },
   { label: 'Alert History', href: '/alerts', icon: Bell },
   { label: 'System Settings', href: '/settings', icon: Settings },
