@@ -34,6 +34,7 @@ export interface Device{
     firmwareVersion: string;
     location: string;    // device_id as fallback
     batteryLevel?: number; // 0–100, comes from MQTT telemetry
+    wearerId?: string | null;
 }
 
 export interface WearerInfo {

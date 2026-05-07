@@ -20,17 +20,26 @@ class MqttClientManager {
     this.connectReal()
   }
 
-  private async connectReal() {
+  async reconfigure(brokerUrl: string, username: string, password: string) {
+    if (this.client) {
+      this.client.end()
+      this.client = null
+      this.isConnected = false
+    }
+    await this.connectReal({ brokerUrl, username, password })
+  }
+
+  private async connectReal(override?: { brokerUrl: string; username: string; password: string }) {
     if (this.client) return
     const mqtt = (await import('mqtt')).default
-    const brokerUrl = process.env.NEXT_PUBLIC_MQTT_BROKER_URL
+    const brokerUrl = override?.brokerUrl ?? process.env.NEXT_PUBLIC_MQTT_BROKER_URL
     if (!brokerUrl) {
       console.error('NEXT_PUBLIC_MQTT_BROKER_URL not set')
       return
     }
     this.client = mqtt.connect(brokerUrl, {
-      username: process.env.NEXT_PUBLIC_MQTT_USERNAME,
-      password: process.env.NEXT_PUBLIC_MQTT_PASSWORD,
+      username: override?.username ?? process.env.NEXT_PUBLIC_MQTT_USERNAME,
+      password: override?.password ?? process.env.NEXT_PUBLIC_MQTT_PASSWORD,
       reconnectPeriod: 3000,
     })
 
@@ -109,6 +118,7 @@ class MqttClientManager {
           message: 'Phát hiện té ngã (mock)', timestamp: new Date().toISOString(), acknowledged: false,
         }
         this.alertCallbacks.get(deviceId)?.forEach(cb => cb(alert))
+        this.alertCallbacks.get('*')?.forEach(cb => cb(alert))
       }
     }, 500)
   }

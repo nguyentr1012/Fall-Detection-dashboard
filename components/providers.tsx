@@ -7,12 +7,7 @@ import { queryClient } from '@/lib/query-client'
 import { useAlertStore } from '@/store/useAlertStore'
 
 function RealtimeInit() {
-  const { subscribeToRealtime, alerts } = useAlertStore()
-
-  useEffect(() => {
-    const unsub = subscribeToRealtime()
-    return unsub
-  }, [subscribeToRealtime])
+  const { alerts } = useAlertStore()
 
   // Show toast for new critical alerts
   const latestAlert = alerts[0]
