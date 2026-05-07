@@ -6,7 +6,10 @@
  * - All paths are relative to NEXT_PUBLIC_BACKEND_URL.
  */
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
+if (!BACKEND_URL) {
+  console.warn('⚠️ NEXT_PUBLIC_BACKEND_URL is not defined in environment variables!')
+}
 
 function getTokenFromCookie(): string | undefined {
   if (typeof document === 'undefined') return undefined

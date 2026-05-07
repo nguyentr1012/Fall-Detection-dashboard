@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Users,
   Radio,
+  Activity,
   Bell,
   Settings,
   Diamond,
@@ -13,11 +14,12 @@ import {
 } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { label: 'Dashboard',        href: '/',                icon: LayoutDashboard },
-  { label: 'Patients',         href: '/wearers',          icon: Users },
-  { label: 'Medical Devices',  href: '/data-collection',  icon: Radio },
-  { label: 'Alert History',    href: '/alerts',           icon: Bell },
-  { label: 'System Settings',  href: '/settings',         icon: Settings },
+  { label: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { label: 'Wearers', href: '/wearers', icon: Users },
+  { label: 'Devices', href: '/devices', icon: Radio },
+  { label: 'Data Collector', href: '/data-collection', icon: Activity },
+  { label: 'Alert History', href: '/alerts', icon: Bell },
+  { label: 'System Settings', href: '/settings', icon: Settings },
 ]
 
 interface Props {
@@ -89,7 +91,7 @@ export function Sidebar({ isOpen }: Props) {
               <p className="text-[10px] text-gray-400 uppercase">System Admin</p>
             </div>
           </div>
-          <button 
+          <button
             onClick={async () => {
               const { logout } = await import('@/app/actions/auth')
               await logout()

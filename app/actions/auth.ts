@@ -3,12 +3,17 @@
 import { cookies } from 'next/headers'
 
 export async function login(username: string, password: string) {
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
+  if (!backendUrl) {
+    return { success: false, error: 'Cấu hình hệ thống lỗi: Thiếu Backend URL.' }
+  }
+
   try {
     const formData = new URLSearchParams()
     formData.append('username', username)
     formData.append('password', password)
 
-    const response = await fetch('https://vitalsguard-backend.onrender.com/', {
+    const response = await fetch(`${backendUrl}/api/v1/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
