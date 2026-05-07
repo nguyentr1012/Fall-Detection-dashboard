@@ -1,4 +1,5 @@
-import type { IMUBatch, Alert } from "@/src/types";
+import type { IMUBatch, Alert, IMUSample } from "@/src/types";
+import { parseRawImu } from "./imu-parser";
 
 type BatchCallback = (batch: IMUBatch) => void;
 type AlertCallback = (alert: Alert) => void;
@@ -37,6 +38,7 @@ class MqttClientManager {
     this.client.on('connect', () => {
       this.isConnected = true
       this.client!.subscribe('eldercare/+/telemetry')
+      this.client!.subscribe('eldercare/+/imu/raw')
       this.client!.subscribe('eldercare/+/alert/fall')
     })
 
@@ -45,15 +47,23 @@ class MqttClientManager {
         const deviceId = topic.split('/')[1]
         const data = JSON.parse(payload.toString())
 
-        if (topic.endsWith('/telemetry')) {
+        if (topic.endsWith('/imu/raw')) {
+          // Data Collection flow — parse 2D array
+          const parsedSamples = parseRawImu(data)
           const batch: IMUBatch = {
             deviceId,
             batchId: crypto.randomUUID(),
-            startTimestamp: Date.now(),
-            samples: Array.isArray(data) ? data : data.samples ?? [],
+            startTimestamp: data.ts,
+            samples: parsedSamples,
           }
           this.batchCallbacks.get(deviceId)?.forEach(cb => cb(batch))
           this.batchCallbacks.get('*')?.forEach(cb => cb(batch))
+        }
+
+        if (topic.endsWith('/telemetry')) {
+          // Dashboard telemetry flow (for battery/status updates)
+          // For now, we only care about IMU data in this client's batch callback
+          // But we could trigger telemetry-specific callbacks here if needed.
         }
 
         if (topic.endsWith('/fall')) {
