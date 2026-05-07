@@ -65,3 +65,61 @@ export const useUpdateDeviceConfig = () => {
 // Recording session (Phase 1)
 export const useSaveRecording = () =>
   useMutation({ mutationFn: (session: RecordingSession) => api.saveRecordingSession(session) })
+
+// Wearer CRUD mutations
+export const useCreateWearer = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { full_name: string; height_cm: number; org_id: string }) =>
+      api.createWearer(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wearers'] }),
+  })
+}
+
+export const useUpdateWearer = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: { full_name?: string; height_cm?: number } }) =>
+      api.updateWearer(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wearers'] }),
+  })
+}
+
+export const useDeleteWearer = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.deleteWearer(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wearers'] }),
+  })
+}
+
+export const useAssignDevice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ deviceId, wearerId }: { deviceId: string; wearerId: string }) =>
+      api.assignDevice(deviceId, wearerId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['devices'] })
+      qc.invalidateQueries({ queryKey: ['wearers'] })
+    },
+  })
+}
+
+export const useUnassignDevice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (deviceId: string) => api.unassignDevice(deviceId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['devices'] })
+      qc.invalidateQueries({ queryKey: ['wearers'] })
+    },
+  })
+}
+
+// Steps history for /alerts analytics
+export const useStepsHistory = (days = 7) =>
+  useQuery({
+    queryKey: ['stepsHistory', days],
+    queryFn: () => api.getStepsHistory(days),
+    staleTime: 5 * 60_000,
+  })

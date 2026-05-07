@@ -11,9 +11,11 @@ import type { Alert } from '@/src/types'
 interface AlertStore {
   alerts: Alert[]
   onlineDevices: string[]
+  dismissedOverlayAlertIds: string[]
   addAlert: (alert: Alert) => void
   dismissAlert: (alertId: string) => void
   acknowledgeAlert: (alertId: string) => void
+  dismissOverlayAlert: (alertId: string) => void
   setDeviceOnline: (deviceId: string) => void
   setDeviceOffline: (deviceId: string) => void
 }
@@ -21,6 +23,7 @@ interface AlertStore {
 export const useAlertStore = create<AlertStore>((set) => ({
   alerts: [],
   onlineDevices: [],
+  dismissedOverlayAlertIds: [],
 
   addAlert: (alert) =>
     set((s) => ({
@@ -31,6 +34,13 @@ export const useAlertStore = create<AlertStore>((set) => ({
 
   dismissAlert: (alertId) =>
     set((s) => ({ alerts: s.alerts.filter((a) => a.id !== alertId) })),
+
+  dismissOverlayAlert: (alertId) =>
+    set((s) => ({
+      dismissedOverlayAlertIds: s.dismissedOverlayAlertIds.includes(alertId)
+        ? s.dismissedOverlayAlertIds
+        : [...s.dismissedOverlayAlertIds, alertId],
+    })),
 
   acknowledgeAlert: (alertId) =>
     set((s) => ({

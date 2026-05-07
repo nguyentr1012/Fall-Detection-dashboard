@@ -12,13 +12,20 @@ import type { Device, Alert, DeviceConfig, RecordingSession } from '@/src/types'
 // Shape of raw responses from FastAPI (matching backend Pydantic schemas)
 // ---------------------------------------------------------------------------
 
-interface BackendWearer {
+export interface BackendWearer {
   id: string
   full_name: string
   height_cm: number
   org_id: string
   created_at: string
   updated_at: string
+}
+
+export interface BackendStepsDay {
+  date: string         // "YYYY-MM-DD"
+  walk_steps: number
+  run_steps: number
+  distance_km: number
 }
 
 interface BackendDevice {
@@ -54,6 +61,7 @@ function mapDevice(d: BackendDevice): Device {
     lastAlert: null,
     firmwareVersion: d.firmware_version ?? '1.0.0',
     location: d.device_id,
+    wearerId: d.current_wearer_id ?? null,
   }
 }
 
@@ -189,6 +197,12 @@ export const api = {
       })
     }
     return api.getDeviceConfig(deviceId)
+  },
+
+  // ── Steps History ────────────────────────────────────────────────────────
+
+  getStepsHistory: async (days = 7): Promise<BackendStepsDay[]> => {
+    return apiClient.get<BackendStepsDay[]>(`/api/v1/history/steps?days=${days}`)
   },
 
   // ── Recording Session (Phase 1 — data collection) ────────────────────────
