@@ -95,12 +95,18 @@ export const api = {
     return mapDevice(data)
   },
 
-  registerDevice: async (deviceId: string): Promise<Device> => {
-    const data = await apiClient.post<BackendDevice>('/api/v1/devices/', {
-      device_id: deviceId,
-      is_active: true,
-    })
+  registerDevice: async (payload: { device_id: string; firmware_version?: string; is_active: boolean; org_id: string }): Promise<Device> => {
+    const data = await apiClient.post<BackendDevice>('/api/v1/devices/', payload)
     return mapDevice(data)
+  },
+
+  updateDevice: async (deviceId: string, payload: { is_active?: boolean; firmware_version?: string }): Promise<Device> => {
+    const data = await apiClient.put<BackendDevice>(`/api/v1/devices/${deviceId}`, payload)
+    return mapDevice(data)
+  },
+
+  deleteDevice: async (deviceId: string): Promise<void> => {
+    await apiClient.delete(`/api/v1/devices/${deviceId}`)
   },
 
   assignDevice: async (deviceId: string, wearerId: string): Promise<Device> => {

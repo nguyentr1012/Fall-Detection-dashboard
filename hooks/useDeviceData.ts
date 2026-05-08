@@ -116,6 +116,32 @@ export const useUnassignDevice = () => {
   })
 }
 
+export const useRegisterDevice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { device_id: string; firmware_version?: string; is_active: boolean; org_id: string }) =>
+      api.registerDevice(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['devices'] }),
+  })
+}
+
+export const useUpdateDevice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: { is_active?: boolean; firmware_version?: string } }) =>
+      api.updateDevice(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['devices'] }),
+  })
+}
+
+export const useDeleteDevice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.deleteDevice(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['devices'] }),
+  })
+}
+
 // Steps history for /alerts analytics
 export const useStepsHistory = (days = 7) =>
   useQuery({
