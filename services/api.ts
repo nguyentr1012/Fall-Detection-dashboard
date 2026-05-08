@@ -95,7 +95,7 @@ export const api = {
     return mapDevice(data)
   },
 
-  registerDevice: async (payload: { device_id: string; firmware_version?: string; is_active: boolean; org_id: string }): Promise<Device> => {
+  registerDevice: async (payload: { device_id: string; firmware_version?: string; is_active: boolean; org_id?: string }): Promise<Device> => {
     const data = await apiClient.post<BackendDevice>('/api/v1/devices/', payload)
     return mapDevice(data)
   },
@@ -158,7 +158,7 @@ export const api = {
   createWearer: async (payload: {
     full_name: string
     height_cm: number
-    org_id: string
+    org_id?: string
   }): Promise<BackendWearer> => {
     return apiClient.post<BackendWearer>('/api/v1/wearers/', payload)
   },

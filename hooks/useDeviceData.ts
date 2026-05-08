@@ -70,7 +70,7 @@ export const useSaveRecording = () =>
 export const useCreateWearer = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (payload: { full_name: string; height_cm: number; org_id: string }) =>
+    mutationFn: (payload: { full_name: string; height_cm: number; org_id?: string }) =>
       api.createWearer(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['wearers'] }),
   })
@@ -119,7 +119,7 @@ export const useUnassignDevice = () => {
 export const useRegisterDevice = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (payload: { device_id: string; firmware_version?: string; is_active: boolean; org_id: string }) =>
+    mutationFn: (payload: { device_id: string; firmware_version?: string; is_active: boolean; org_id?: string }) =>
       api.registerDevice(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['devices'] }),
   })

@@ -58,7 +58,6 @@ export function DeviceFormDialog({ open, onClose, mode, device }: Props) {
           device_id: deviceId.trim(),
           firmware_version: firmwareVersion.trim(),
           is_active: isActive,
-          org_id: process.env.NEXT_PUBLIC_ORG_ID ?? '',
         })
       } else if (device) {
         await updateDevice.mutateAsync({
