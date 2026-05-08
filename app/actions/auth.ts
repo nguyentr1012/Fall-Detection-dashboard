@@ -32,7 +32,7 @@ export async function login(username: string, password: string) {
     // Set HTTP-Only cookie
     const cookieStore = await cookies()
     cookieStore.set('auth_token', token, {
-      httpOnly: true,
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
