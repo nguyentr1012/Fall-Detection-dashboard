@@ -47,7 +47,7 @@ export function WeeklyActivityTrends() {
               <Tooltip
                 cursor={false}
                 contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
-                formatter={(v: number) => [`${v} min`, 'Active Time']}
+                formatter={(v: any) => [`${v} min`, 'Active Time']}
               />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                 {WEEKLY_DATA.map((_, i) => (
