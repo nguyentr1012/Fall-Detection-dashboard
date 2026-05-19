@@ -70,7 +70,7 @@ export const useSaveRecording = () =>
 export const useCreateWearer = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (payload: { full_name: string; height_cm: number; org_id: string }) =>
+    mutationFn: (payload: { full_name: string; height_cm: number; org_id?: string }) =>
       api.createWearer(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['wearers'] }),
   })
@@ -113,6 +113,32 @@ export const useUnassignDevice = () => {
       qc.invalidateQueries({ queryKey: ['devices'] })
       qc.invalidateQueries({ queryKey: ['wearers'] })
     },
+  })
+}
+
+export const useRegisterDevice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { device_id: string; firmware_version?: string; is_active: boolean; org_id?: string }) =>
+      api.registerDevice(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['devices'] }),
+  })
+}
+
+export const useUpdateDevice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: { is_active?: boolean; firmware_version?: string } }) =>
+      api.updateDevice(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['devices'] }),
+  })
+}
+
+export const useDeleteDevice = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.deleteDevice(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['devices'] }),
   })
 }
 
