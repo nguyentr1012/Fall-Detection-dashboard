@@ -28,6 +28,14 @@ export interface BackendStepsDay {
   distance_km: number
 }
 
+export interface BackendTimelineEntry {
+  id: string
+  type: 'ALERT' | 'EVENT'
+  title: string
+  description: string | null
+  created_at: string
+}
+
 interface BackendDevice {
   device_id: string
   firmware_version: string | null
@@ -134,9 +142,8 @@ export const api = {
     return data.map(mapAlert)
   },
 
-  acknowledgeAlert: async (alertId: string): Promise<void> => {
-    // Backend uses is_resolved field — PATCH on the alert
-    await apiClient.patch(`/api/v1/history/alerts/${alertId}/resolve`)
+  acknowledgeAlert: async (_alertId: string): Promise<void> => {
+    // No resolve endpoint in current backend spec — UI-only acknowledgment
   },
 
   // ── Wearers ──────────────────────────────────────────────────────────────
