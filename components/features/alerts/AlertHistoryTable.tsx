@@ -34,10 +34,10 @@ export function AlertHistoryTable({ alerts, isLoading }: Props) {
   const acknowledgeAlert = useAlertStore((s) => s.acknowledgeAlert)
   const qc = useQueryClient()
 
-  const handleAck = async (alertId: string) => {
+  const handleAck = async (alertId: string, deviceId: string) => {
     setAckingIds((s) => new Set(s).add(alertId))
     try {
-      await api.acknowledgeAlert(alertId)
+      await api.acknowledgeAlert(alertId, deviceId)
       acknowledgeAlert(alertId)
       qc.invalidateQueries({ queryKey: ['alerts'] })
     } finally {
@@ -113,7 +113,7 @@ export function AlertHistoryTable({ alerts, isLoading }: Props) {
                       variant="ghost"
                       className="h-7 text-xs"
                       disabled={ackingIds.has(alert.id)}
-                      onClick={() => handleAck(alert.id)}
+                      onClick={() => handleAck(alert.id, alert.deviceId)}
                     >
                       {ackingIds.has(alert.id) ? '...' : 'Xác nhận'}
                     </Button>

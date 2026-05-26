@@ -36,6 +36,9 @@ interface BackendDevice {
   wearer: BackendWearer | null
   created_at: string
   updated_at: string
+  is_online?: boolean
+  battery_pct?: number
+  last_online?: string | null
 }
 
 interface BackendAlert {
@@ -56,12 +59,13 @@ function mapDevice(d: BackendDevice): Device {
     id: d.device_id,
     name: d.wearer?.full_name ?? 'Chưa gán',
     model: 'MPU-6050',
-    status: d.is_active ? 'online' : 'offline',
-    lastSeen: d.updated_at,
+    status: d.is_online ? 'online' : 'offline',
+    lastSeen: d.last_online ?? d.updated_at,
     lastAlert: null,
     firmwareVersion: d.firmware_version ?? '1.0.0',
     location: d.device_id,
     wearerId: d.current_wearer_id ?? null,
+    batteryLevel: d.battery_pct,
   }
 }
 
@@ -134,9 +138,12 @@ export const api = {
     return data.map(mapAlert)
   },
 
-  acknowledgeAlert: async (alertId: string): Promise<void> => {
-    // Backend uses is_resolved field — PATCH on the alert
-    await apiClient.patch(`/api/v1/history/alerts/${alertId}/resolve`)
+  acknowledgeAlert: async (alertId: string, deviceId?: string): Promise<void> => {
+    // Backend uses is_resolved field — PATCH on the alert, with optional device_id fallback
+    const url = deviceId
+      ? `/api/v1/history/alerts/${alertId}/resolve?device_id=${deviceId}`
+      : `/api/v1/history/alerts/${alertId}/resolve`
+    await apiClient.patch(url)
   },
 
   // ── Wearers ──────────────────────────────────────────────────────────────

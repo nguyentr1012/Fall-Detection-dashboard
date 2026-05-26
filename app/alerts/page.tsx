@@ -6,7 +6,7 @@ import { AlertFilters } from '@/components/features/alerts/AlertFilters'
 import { AlertHistoryTable } from '@/components/features/alerts/AlertHistoryTable'
 import { StepsChart } from '@/components/features/alerts/StepsChart'
 import { DistanceChart } from '@/components/features/alerts/DistanceChart'
-import { useAlerts, useDevices, useStepsHistory } from '@/hooks/useDeviceData'
+import { useCombinedAlerts, useDevices, useStepsHistory } from '@/hooks/useDeviceData'
 import type { Alert } from '@/src/types'
 
 const CHART_DAYS_OPTIONS = [7, 14, 30]
@@ -17,7 +17,7 @@ export default function AlertsPage() {
   const [dateFilter, setDateFilter] = useState('')
   const [chartDays, setChartDays] = useState(7)
 
-  const { data: alerts = [], isLoading: alertsLoading } = useAlerts(200)
+  const { data: alerts = [], isLoading: alertsLoading } = useCombinedAlerts(200)
   const { data: devices = [] } = useDevices()
   const { data: stepsHistory = [], isLoading: stepsLoading } = useStepsHistory(chartDays)
 

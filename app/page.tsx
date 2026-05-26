@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { ChevronRight } from 'lucide-react'
-import { useDevices, useAlerts } from '@/hooks/useDeviceData'
+import { useDevices, useCombinedAlerts } from '@/hooks/useDeviceData'
 import { CriticalAlertBanner } from '@/components/features/dashboard/CriticalAlertBanner'
 import { DeviceGrid } from '@/components/features/dashboard/DeviceGrid'
 import { WeeklyActivityTrends } from '@/components/features/dashboard/WeeklyActivityTrends'
@@ -12,9 +12,13 @@ export default function DashboardPage() {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
 
   const { data: devices = [], isLoading: devLoading } = useDevices()
-  const { data: alerts = [], isLoading: alertLoading } = useAlerts(20)
+  const { data: alerts = [], isLoading: alertLoading } = useCombinedAlerts(20)
 
-  const criticalAlert = alerts.find(a => a.severity === 'critical' && !a.acknowledged) ?? null
+  const criticalAlert = alerts.find(a => {
+    if (a.severity !== 'critical' || a.acknowledged) return false
+    const hoursSince = (Date.now() - new Date(a.timestamp).getTime()) / (1000 * 60 * 60)
+    return hoursSince <= 24
+  }) ?? null
 
   const onlineCount = devices.filter(d => d.status === 'online').length
 

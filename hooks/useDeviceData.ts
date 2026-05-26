@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
-import type { DeviceConfig, RecordingSession } from '@/src/types'
+import type { DeviceConfig, RecordingSession, Alert } from '@/src/types'
+import { useAlertStore } from '@/store/useAlertStore'
 
 // Devices – poll every 60 s to refresh battery & online status (per Master Spec)
 export const useDevices = () =>
@@ -25,6 +26,42 @@ export const useAlerts = (limit = 20) =>
     queryFn: () => api.getAlerts(limit),
     refetchInterval: 30_000,
   })
+
+export const useCombinedAlerts = (limit = 20) => {
+  const { data: apiAlerts = [], ...rest } = useAlerts(limit)
+  const realTimeAlerts = useAlertStore((s) => s.alerts)
+
+  const combinedAlertsMap = new Map<string, Alert>()
+
+  // 1. Add API-fetched alerts first
+  apiAlerts.forEach((a) => combinedAlertsMap.set(a.id, a))
+
+  // 2. Add/override with real-time alerts
+  realTimeAlerts.forEach((a) => {
+    const existing = combinedAlertsMap.get(a.id)
+    if (!existing) {
+      combinedAlertsMap.set(a.id, a)
+    } else {
+      // Prefer the acknowledged: true status from either source (synchronizing resolutions instantly)
+      combinedAlertsMap.set(a.id, {
+        ...existing,
+        ...a,
+        acknowledged: existing.acknowledged || a.acknowledged,
+      })
+    }
+  })
+
+  // Sort by timestamp descending (newest first)
+  const alerts = Array.from(combinedAlertsMap.values()).sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  )
+
+  return {
+    ...rest,
+    data: alerts.slice(0, limit),
+  }
+}
+
 
 export const useDeviceAlerts = (deviceId: string, limit = 20) =>
   useQuery({

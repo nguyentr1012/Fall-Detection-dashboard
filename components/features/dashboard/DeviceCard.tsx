@@ -8,7 +8,11 @@ type DeviceStatus = 'online' | 'offline' | 'alert' | 'low'
 function getEffectiveStatus(device: Device, criticalAlerts: Alert[]): DeviceStatus {
   if (device.status === 'offline') return 'offline'
   const hasCritical = criticalAlerts.some(
-    a => a.deviceId === device.id && !a.acknowledged && a.severity === 'critical'
+    a => {
+      if (a.deviceId !== device.id || a.acknowledged || a.severity !== 'critical') return false
+      const hoursSince = (Date.now() - new Date(a.timestamp).getTime()) / (1000 * 60 * 60)
+      return hoursSince <= 24
+    }
   )
   if (hasCritical) return 'alert'
   if (device.batteryLevel !== undefined && device.batteryLevel < 20) return 'low'
