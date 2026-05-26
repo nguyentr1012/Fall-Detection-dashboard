@@ -28,6 +28,14 @@ export interface BackendStepsDay {
   distance_km: number
 }
 
+export interface BackendTimelineEntry {
+  id: string
+  type: 'ALERT' | 'EVENT'
+  title: string
+  description: string | null
+  created_at: string
+}
+
 interface BackendDevice {
   device_id: string
   firmware_version: string | null
@@ -99,12 +107,18 @@ export const api = {
     return mapDevice(data)
   },
 
-  registerDevice: async (deviceId: string): Promise<Device> => {
-    const data = await apiClient.post<BackendDevice>('/api/v1/devices/', {
-      device_id: deviceId,
-      is_active: true,
-    })
+  registerDevice: async (payload: { device_id: string; firmware_version?: string; is_active: boolean; org_id?: string }): Promise<Device> => {
+    const data = await apiClient.post<BackendDevice>('/api/v1/devices/', payload)
     return mapDevice(data)
+  },
+
+  updateDevice: async (deviceId: string, payload: { is_active?: boolean; firmware_version?: string }): Promise<Device> => {
+    const data = await apiClient.put<BackendDevice>(`/api/v1/devices/${deviceId}`, payload)
+    return mapDevice(data)
+  },
+
+  deleteDevice: async (deviceId: string): Promise<void> => {
+    await apiClient.delete(`/api/v1/devices/${deviceId}`)
   },
 
   assignDevice: async (deviceId: string, wearerId: string): Promise<Device> => {
@@ -138,12 +152,9 @@ export const api = {
     return data.map(mapAlert)
   },
 
-  acknowledgeAlert: async (alertId: string, deviceId?: string): Promise<void> => {
-    // Backend uses is_resolved field — PATCH on the alert, with optional device_id fallback
-    const url = deviceId
-      ? `/api/v1/history/alerts/${alertId}/resolve?device_id=${deviceId}`
-      : `/api/v1/history/alerts/${alertId}/resolve`
-    await apiClient.patch(url)
+  acknowledgeAlert: async (alertId: string): Promise<void> => {
+    // Backend uses is_resolved field — PATCH on the alert
+    await apiClient.patch(`/api/v1/history/alerts/${alertId}/resolve`)
   },
 
   // ── Wearers ──────────────────────────────────────────────────────────────
@@ -159,7 +170,7 @@ export const api = {
   createWearer: async (payload: {
     full_name: string
     height_cm: number
-    org_id: string
+    org_id?: string
   }): Promise<BackendWearer> => {
     return apiClient.post<BackendWearer>('/api/v1/wearers/', payload)
   },

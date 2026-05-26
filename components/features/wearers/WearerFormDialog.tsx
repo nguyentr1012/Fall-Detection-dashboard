@@ -55,7 +55,6 @@ export function WearerFormDialog({ open, onClose, mode, wearer }: Props) {
         await createWearer.mutateAsync({
           full_name: fullName.trim(),
           height_cm: Number(heightCm),
-          org_id: process.env.NEXT_PUBLIC_ORG_ID ?? '',
         })
       } else if (wearer) {
         await updateWearer.mutateAsync({
