@@ -1,5 +1,7 @@
+'use client'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DeviceCard } from './DeviceCard'
+import { useTelemetryStore } from '@/store/useTelemetryStore'
 import type { Device, Alert } from '@/src/types'
 
 interface Props {
@@ -11,6 +13,8 @@ interface Props {
 }
 
 export function DeviceGrid({ devices, alerts, isLoading, selectedId, onSelect }: Props) {
+  const getTelemetry = useTelemetryStore(s => s.getTelemetry)
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -31,15 +35,19 @@ export function DeviceGrid({ devices, alerts, isLoading, selectedId, onSelect }:
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {devices.map(d => (
-        <DeviceCard
-          key={d.id}
-          device={d}
-          criticalAlerts={alerts}
-          isSelected={selectedId === d.id}
-          onSelect={onSelect}
-        />
-      ))}
+      {devices.map(d => {
+        const rt = getTelemetry(d.id)
+        const device = rt ? { ...d, batteryLevel: rt.battery_pct } : d
+        return (
+          <DeviceCard
+            key={d.id}
+            device={device}
+            criticalAlerts={alerts}
+            isSelected={selectedId === d.id}
+            onSelect={onSelect}
+          />
+        )
+      })}
     </div>
   )
 }

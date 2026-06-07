@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { getMqttClient } from '@/lib/mqtt-client'
 import { useAlertStore } from '@/store/useAlertStore'
+import { useTelemetryStore } from '@/store/useTelemetryStore'
 import type { IMUBatch } from '@/src/types'
 
 export function useMqtt(deviceId: string | null) {
@@ -11,6 +12,7 @@ export function useMqtt(deviceId: string | null) {
   const addAlert = useAlertStore(s => s.addAlert)
   const setDeviceOnline = useAlertStore(s => s.setDeviceOnline)
   const setDeviceOffline = useAlertStore(s => s.setDeviceOffline)
+  const updateTelemetry = useTelemetryStore(s => s.updateTelemetry)
 
   useEffect(() => {
     if (!deviceId) return
@@ -25,8 +27,10 @@ export function useMqtt(deviceId: string | null) {
       (batch) => {
         lastBatchRef.current = batch
         forceUpdate(n => n + 1)
+        setDeviceOnline(deviceId)
       },
-      (alert) => addAlert(alert)
+      (alert) => addAlert(alert),
+      (id, data) => updateTelemetry(id, { ...data, last_seen: Date.now() })
     )
 
     return () => {
