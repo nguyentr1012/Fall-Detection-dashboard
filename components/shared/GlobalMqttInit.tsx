@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { getMqttClient } from '@/lib/mqtt-client'
 import { playAlarm } from '@/lib/alarm'
 import { useAlertStore } from '@/store/useAlertStore'
@@ -14,6 +15,7 @@ export function GlobalMqttInit() {
   soundEnabledRef.current = soundEnabled
   const updateTelemetry = useTelemetryStore((s) => s.updateTelemetry)
   const setMqttConnected = useTelemetryStore((s) => s.setMqttConnected)
+  const qc = useQueryClient()
 
   useEffect(() => {
     const client = getMqttClient()
@@ -25,9 +27,14 @@ export function GlobalMqttInit() {
       '*',
       undefined, // KHÔNG đăng ký batch — global không cần luồng IMU 100Hz
       (alert) => {
-        addAlert(alert)
+        addAlert(alert) // chỉ cho overlay + chuông real-time, KHÔNG phải nguồn bảng log
         if (soundEnabledRef.current && alert.type === 'fall_detected') {
           playAlarm()
+        }
+        if (alert.type === 'fall_detected') {
+          // Backend đã persist alert này khi nhận MQTT. Refetch để bảng log hiển thị
+          // bản ghi DB (1 dòng duy nhất) ngay, thay vì chờ poll 30s. Trễ nhẹ tránh race.
+          setTimeout(() => qc.invalidateQueries({ queryKey: ['alerts'] }), 1500)
         }
       },
       (deviceId, data) => updateTelemetry(deviceId, { ...data, last_seen: Date.now() })

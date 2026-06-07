@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
-import type { DeviceConfig, RecordingSession, Alert } from '@/src/types'
-import { useAlertStore } from '@/store/useAlertStore'
+import type { DeviceConfig, RecordingSession } from '@/src/types'
 
 // Devices – poll every 60 s to refresh battery & online status (per Master Spec)
 export const useDevices = () =>
@@ -27,32 +26,14 @@ export const useAlerts = (limit = 20) =>
     refetchInterval: 30_000,
   })
 
+// Bảng log alert lấy DUY NHẤT từ backend (nguồn sự thật). Trước đây hàm này còn
+// merge alert live từ useAlertStore (MQTT) → cùng 1 cú ngã sinh 2 dòng vì id
+// client (crypto.randomUUID) khác id server. useAlertStore giờ chỉ phục vụ UX
+// real-time (FallDetectionOverlay + chuông), KHÔNG đẩy dòng vào bảng log nữa.
 export const useCombinedAlerts = (limit = 20) => {
   const { data: apiAlerts = [], ...rest } = useAlerts(limit)
-  const realTimeAlerts = useAlertStore((s) => s.alerts)
 
-  const combinedAlertsMap = new Map<string, Alert>()
-
-  // 1. Add API-fetched alerts first
-  apiAlerts.forEach((a) => combinedAlertsMap.set(a.id, a))
-
-  // 2. Add/override with real-time alerts
-  realTimeAlerts.forEach((a) => {
-    const existing = combinedAlertsMap.get(a.id)
-    if (!existing) {
-      combinedAlertsMap.set(a.id, a)
-    } else {
-      // Prefer the acknowledged: true status from either source (synchronizing resolutions instantly)
-      combinedAlertsMap.set(a.id, {
-        ...existing,
-        ...a,
-        acknowledged: existing.acknowledged || a.acknowledged,
-      })
-    }
-  })
-
-  // Sort by timestamp descending (newest first)
-  const alerts = Array.from(combinedAlertsMap.values()).sort(
+  const alerts = [...apiAlerts].sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   )
 

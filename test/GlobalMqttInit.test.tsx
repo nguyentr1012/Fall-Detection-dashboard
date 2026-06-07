@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, act } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { ReactElement } from 'react'
 
 const fake = vi.hoisted(() => {
   const m = {
@@ -31,6 +33,12 @@ function makeAlert(type: 'fall_detected' | 'low_battery' = 'fall_detected') {
   return { id: 'a1', deviceId: 'dev_1', deviceName: 'd', severity: 'critical' as const, type, message: 'm', timestamp: new Date(0).toISOString(), acknowledged: false }
 }
 
+// GlobalMqttInit dùng useQueryClient → cần bọc QueryClientProvider khi render.
+function renderGmi(ui: ReactElement = <GlobalMqttInit />) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>)
+}
+
 beforeEach(() => {
   useAlertStore.setState({ alerts: [], onlineDevices: [], dismissedOverlayAlertIds: [] })
   useTelemetryStore.setState({ telemetry: {}, mqttConnected: false })
@@ -41,19 +49,19 @@ beforeEach(() => {
 
 describe('GlobalMqttInit', () => {
   it('render null (không có DOM output)', () => {
-    const { container } = render(<GlobalMqttInit />)
+    const { container } = renderGmi()
     expect(container.firstChild).toBeNull()
   })
 
   it('connect global-monitor + đăng ký onConnectionChange + subscribe "*" không batch', () => {
-    render(<GlobalMqttInit />)
+    renderGmi()
     expect(fake.connect).toHaveBeenCalledWith('global-monitor')
     expect(fake.onConnectionChange).toHaveBeenCalledTimes(1)
     expect(fake.subscribe).toHaveBeenCalledWith('*', undefined, expect.any(Function), expect.any(Function))
   })
 
   it('connectionChange → setMqttConnected trong telemetry store', () => {
-    render(<GlobalMqttInit />)
+    renderGmi()
     act(() => fake._conn!(true))
     expect(useTelemetryStore.getState().mqttConnected).toBe(true)
     act(() => fake._conn!(false))
@@ -61,13 +69,13 @@ describe('GlobalMqttInit', () => {
   })
 
   it('telemetry callback → updateTelemetry', () => {
-    render(<GlobalMqttInit />)
+    renderGmi()
     act(() => fake._tel!('dev_2', { battery_pct: 33, walk_steps: 0, run_steps: 0 }))
     expect(useTelemetryStore.getState().getTelemetry('dev_2')!.battery_pct).toBe(33)
   })
 
   it('alert fall + soundEnabled=true → addAlert và playAlarm', () => {
-    render(<GlobalMqttInit />)
+    renderGmi()
     act(() => fake._alert!(makeAlert('fall_detected')))
     expect(useAlertStore.getState().alerts).toHaveLength(1)
     expect(playAlarm).toHaveBeenCalledTimes(1)
@@ -75,20 +83,20 @@ describe('GlobalMqttInit', () => {
 
   it('alert fall + soundEnabled=false → addAlert nhưng KHÔNG playAlarm', () => {
     useSettingsStore.setState({ soundEnabled: false })
-    render(<GlobalMqttInit />)
+    renderGmi()
     act(() => fake._alert!(makeAlert('fall_detected')))
     expect(useAlertStore.getState().alerts).toHaveLength(1)
     expect(playAlarm).not.toHaveBeenCalled()
   })
 
   it('alert không phải fall → KHÔNG playAlarm dù sound bật', () => {
-    render(<GlobalMqttInit />)
+    renderGmi()
     act(() => fake._alert!(makeAlert('low_battery')))
     expect(playAlarm).not.toHaveBeenCalled()
   })
 
   it('unmount → off connectionChange + unsubscribe + disconnect', () => {
-    const { unmount } = render(<GlobalMqttInit />)
+    const { unmount } = renderGmi()
     unmount()
     expect(fake.off).toHaveBeenCalledTimes(1)
     expect(fake.unsubscribe).toHaveBeenCalledWith('*')
