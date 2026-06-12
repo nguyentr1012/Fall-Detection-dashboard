@@ -41,5 +41,12 @@ export function useMqtt(deviceId: string | null) {
     }
   }, [deviceId])
 
-  return { isConnected, lastBatch: lastBatchRef.current }
+  const sendCommand = (action: 'start_stream' | 'stop_stream' | 'ota_update') => {
+    if (deviceId) {
+      const client = getMqttClient()
+      client.sendCommand(deviceId, action)
+    }
+  }
+
+  return { isConnected, lastBatch: lastBatchRef.current, sendCommand }
 }

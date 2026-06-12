@@ -30,7 +30,7 @@ export default function DataCollectionPage() {
   const isRecordingRef = useRef(false)
   const startTimeRef = useRef(0)
 
-  const { isConnected, lastBatch } = useMqtt(selectedDeviceId)
+  const { isConnected, lastBatch, sendCommand } = useMqtt(selectedDeviceId)
 
   // Xử lý batch MQTT (chạy mỗi 500ms = 2Hz)
   useEffect(() => {
@@ -71,11 +71,13 @@ export default function DataCollectionPage() {
     startTimeRef.current = Date.now()
     isRecordingRef.current = true
     setIsRecording(true)
-  }, [])
+    sendCommand('start_stream')
+  }, [sendCommand])
 
   const handleStop = useCallback((autoStopped = false) => {
     isRecordingRef.current = false
     setIsRecording(false)
+    sendCommand('stop_stream')
 
     const snapshot = [...recordBuffer.current]
     recordBuffer.current = []
@@ -98,7 +100,7 @@ export default function DataCollectionPage() {
     const csv = exportToCSV(snapshot, label)
     downloadCSV(csv, `${label}_${Date.now()}.csv`)
     toast.success(`Đã lưu ${snapshot.length.toLocaleString()} samples → CSV`)
-  }, [selectedDeviceId, label, saveRecording])
+  }, [selectedDeviceId, label, saveRecording, sendCommand])
 
   const connectionStatus = !selectedDeviceId
     ? 'offline'

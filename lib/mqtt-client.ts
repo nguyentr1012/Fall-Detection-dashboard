@@ -56,6 +56,21 @@ class MqttClientManager {
     await this.connectReal({ brokerUrl, username, password })
   }
 
+  publish(topic: string, message: string) {
+    if (this.isMock) {
+      console.log(`[Mock MQTT] Publish to ${topic}: ${message}`)
+      return
+    }
+    if (!this.isConnected || !this.client) return
+    this.client.publish(topic, message)
+  }
+
+  sendCommand(deviceId: string, action: 'start_stream' | 'stop_stream' | 'ota_update') {
+    const topic = `eldercare/${deviceId}/command`
+    const payload = JSON.stringify({ action })
+    this.publish(topic, payload)
+  }
+
   private async connectReal(override?: { brokerUrl: string; username: string; password: string }) {
     if (this.client) return
     const mqtt = (await import('mqtt')).default
@@ -78,7 +93,7 @@ class MqttClientManager {
       this.client!.subscribe('eldercare/+/alert/fall')
       // IMU 100Hz: CHỈ subscribe khi thực sự có consumer batch (trang
       // data-collection). Tránh nuốt + parse luồng cao tần vô ích ở mọi trang.
-      if (this.hasBatchConsumers()) this.client!.subscribe('eldercare/+/imu/raw')
+      if (this.hasBatchConsumers()) this.client!.subscribe('eldercare/+/imu_stream')
     })
 
     this.client.on('message', (topic: string, payload: Buffer) => {
@@ -86,7 +101,7 @@ class MqttClientManager {
         const deviceId = topic.split('/')[1]
         const data = JSON.parse(payload.toString())
 
-        if (topic.endsWith('/imu/raw')) {
+        if (topic.endsWith('/imu_stream')) {
           // Không có consumer batch nào → bỏ qua, KHÔNG parse (tránh GC churn).
           if (this.batchCallbacks.size === 0) return
           // Data Collection flow — parse 2D array
@@ -196,7 +211,7 @@ class MqttClientManager {
     if (onTelemetry) this.telemetryCallbacks.set(deviceId, [...(this.telemetryCallbacks.get(deviceId) ?? []), onTelemetry])
     // Consumer batch đầu tiên xuất hiện → bật nhận IMU ở broker.
     if (onBatch && !hadBatch && !this.isMock && this.client && this.isConnected) {
-      this.client.subscribe('eldercare/+/imu/raw')
+      this.client.subscribe('eldercare/+/imu_stream')
     }
   }
 
@@ -207,7 +222,7 @@ class MqttClientManager {
     this.telemetryCallbacks.delete(deviceId)
     // Không còn consumer batch → tắt luồng IMU 100Hz (broker ngừng đẩy data).
     if (hadBatch && !this.hasBatchConsumers() && !this.isMock && this.client && this.isConnected) {
-      this.client.unsubscribe('eldercare/+/imu/raw')
+      this.client.unsubscribe('eldercare/+/imu_stream')
     }
   }
 
