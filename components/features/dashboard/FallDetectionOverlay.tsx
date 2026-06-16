@@ -21,7 +21,7 @@ export function FallDetectionOverlay() {
   const handleConfirm = () => {
     dismissOverlay(activeAlert.id)
     acknowledgeAlert(activeAlert.id)
-    api.acknowledgeAlert(activeAlert.id, activeAlert.deviceId).then(() => {
+    api.acknowledgeAlert(activeAlert.id).then(() => {
       qc.invalidateQueries({ queryKey: ['alerts'] })
     }).catch(() => {})
   }

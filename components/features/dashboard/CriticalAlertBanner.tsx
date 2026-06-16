@@ -25,7 +25,7 @@ export function CriticalAlertBanner({ alert }: Props) {
   const { acknowledgeAlert } = useAlertStore()
 
   const { mutate: resolve, isPending } = useMutation({
-    mutationFn: () => api.acknowledgeAlert(alert.id, alert.deviceId),
+    mutationFn: () => api.acknowledgeAlert(alert.id),
     onSuccess: () => {
       acknowledgeAlert(alert.id)
       qc.invalidateQueries({ queryKey: ['alerts'] })

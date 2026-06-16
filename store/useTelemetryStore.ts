@@ -24,12 +24,12 @@ export const useTelemetryStore = create<TelemetryStore>((set, get) => ({
       telemetry: {
         ...state.telemetry,
         [deviceId]: {
+          ...(state.telemetry[deviceId] ?? {}),
           battery_pct: 0,
           walk_steps: 0,
           run_steps: 0,
-          last_seen: Date.now(),
-          ...state.telemetry[deviceId],
           ...data,
+          last_seen: data.last_seen ?? Date.now(),
         },
       },
     }))
