@@ -20,7 +20,7 @@ export default function DataCollectionPage() {
 
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
   const [isRecording, setIsRecording] = useState(false)
-  const [label, setLabel] = useState<ActivityLabel>('walking')
+  const [label, setLabel] = useState<ActivityLabel>('walk')
   const [sampleCount, setSampleCount] = useState(0)
   const [accelData, setAccelData] = useState<AccelChartPoint[]>([])
   const [gyroData, setGyroData] = useState<GyroChartPoint[]>([])

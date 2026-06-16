@@ -19,7 +19,6 @@ const NAV_ITEMS = [
   { label: 'Devices', href: '/devices', icon: Radio },
   { label: 'Data Collector', href: '/data-collection', icon: Activity },
   { label: 'Alert History', href: '/alerts', icon: Bell },
-  { label: 'System Settings', href: '/settings', icon: Settings },
 ]
 
 interface Props {

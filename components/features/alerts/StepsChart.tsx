@@ -25,9 +25,8 @@ export function StepsChart({ data, isLoading }: Props) {
   useEffect(() => setIsMounted(true), [])
 
   const chartData = data.map((d) => ({
-    date: d.date.slice(5), // MM-DD
-    'Đi bộ': d.walk_steps,
-    'Chạy': d.run_steps,
+    date: d?.date ? d.date.slice(5) : '', // MM-DD
+    'Bước chân': d.steps ?? 0,
   }))
 
   return (
@@ -55,8 +54,7 @@ export function StepsChart({ data, isLoading }: Props) {
                 formatter={(v) => (v != null ? Number(v).toLocaleString() : '')}
               />
               <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="Đi bộ" fill="#3b82f6" radius={[2, 2, 0, 0]} />
-              <Bar dataKey="Chạy" fill="#10b981" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="Bước chân" fill="#3b82f6" radius={[2, 2, 0, 0]} />
             </ComposedChart>
           </ResponsiveContainer>
         )}

@@ -5,10 +5,11 @@ import { formatTime } from '@/lib/utils'
 import type { ActivityLabel } from '@/src/types'
 
 const LABELS: { value: ActivityLabel; label: string }[] = [
-  { value: 'walking',  label: 'Đi bộ' },
-  { value: 'standing', label: 'Đứng yên' },
-  { value: 'running',  label: 'Chạy' },
-  { value: 'falling',  label: 'Té ngã' },
+  { value: 'walk', label: 'Đi bộ' },
+  { value: 'run', label: 'Chạy' },
+  { value: 'transition_stand_sit', label: 'Chuyển trạng thái Đứng/Ngồi' },
+  { value: 'transition_sit_lie', label: 'Chuyển trạng thái Ngồi/Nằm' },
+  { value: 'fall', label: 'Té ngã' },
 ]
 
 interface Props {

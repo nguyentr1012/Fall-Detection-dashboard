@@ -1,4 +1,4 @@
-export type ActivityLabel ="walking" | "standing" | "running" | "falling";
+export type ActivityLabel ="run" | "walk" | "transition_stand_sit" | "transition_sit_lie" | "fall";
 
 export interface IMUSample{
     timestamp: number; //Unix ms
@@ -35,6 +35,8 @@ export interface Device{
     location: string;    // device_id as fallback
     batteryLevel?: number; // 0–100, comes from MQTT telemetry
     wearerId?: string | null;
+    is_active?: boolean;
+    telemetry_interval?: number;
 }
 
 export interface WearerInfo {

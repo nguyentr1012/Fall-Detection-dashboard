@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Pencil, Trash2, UserCheck, UserX } from 'lucide-react'
+import Link from 'next/link'
+import { Pencil, Trash2, UserCheck, UserX, Activity, LineChart, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -121,6 +122,44 @@ export function WearersTable({ wearers, devices, isLoading, onEdit }: Props) {
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-1">
+                  {assignedDevice && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-indigo-500 hover:text-indigo-600"
+                        asChild
+                        title="Lịch sử hoạt động"
+                      >
+                        <Link href={`/device/${assignedDevice.id}/history`}>
+                          <Activity className="w-3.5 h-3.5" />
+                        </Link>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-blue-500 hover:text-blue-600"
+                        asChild
+                        title="Nhật ký Telemetry"
+                      >
+                        <Link href={`/device/${assignedDevice.id}/telemetry`}>
+                          <LineChart className="w-3.5 h-3.5" />
+                        </Link>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-emerald-500 hover:text-emerald-600"
+                        asChild
+                        title="Chi tiết & Cấu hình"
+                      >
+                        <Link href={`/device/${assignedDevice.id}`}>
+                          <Settings className="w-3.5 h-3.5" />
+                        </Link>
+                      </Button>
+                      <div className="w-px h-4 bg-gray-200 mx-1" />
+                    </>
+                  )}
                   <Button
                     size="sm"
                     variant="ghost"

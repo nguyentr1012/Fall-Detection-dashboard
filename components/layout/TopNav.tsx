@@ -1,6 +1,8 @@
 'use client'
-import { Menu, Search, Bell, Settings } from 'lucide-react'
+import { Menu, Search, Settings } from 'lucide-react'
 import { useTelemetryStore } from '@/store/useTelemetryStore'
+import Link from 'next/link'
+import { NotificationBell } from './NotificationBell'
 
 interface Props {
   onMenuToggle: () => void
@@ -47,12 +49,10 @@ export function TopNav({ onMenuToggle }: Props) {
       )}
 
       {/* Icons */}
-      <button className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors relative">
-        <Bell className="size-5" />
-      </button>
-      <button className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors">
+      <NotificationBell />
+      <Link href="/settings" className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors">
         <Settings className="size-5" />
-      </button>
+      </Link>
 
       {/* Avatar */}
       <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-white text-xs font-bold cursor-pointer">

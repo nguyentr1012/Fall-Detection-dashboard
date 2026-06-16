@@ -108,21 +108,21 @@ export const DeviceCard = React.memo(function DeviceCard({
       {/* Links */}
       <div className="space-y-1 border-t border-gray-100 pt-2">
         <Link
-          href={`/data-collection`}
+          href={`/device/${device.id}/telemetry`}
           onClick={e => e.stopPropagation()}
           className="block text-xs text-blue-600 hover:underline font-medium"
         >
-          View IMU Log
+          View Telemetry Logs
         </Link>
         <Link
-          href={`/device/${device.id}`}
+          href={`/device/${device.id}/history`}
           onClick={e => e.stopPropagation()}
           className="block text-xs text-gray-600 hover:text-gray-900"
         >
           Activity History
         </Link>
         <Link
-          href={`/device/${device.id}`}
+          href={`/device/${device.id}/vitals`}
           onClick={e => e.stopPropagation()}
           className="block text-xs text-gray-600 hover:text-gray-900"
         >

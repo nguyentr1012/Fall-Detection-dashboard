@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Pencil, Trash2, UserCheck, UserX } from 'lucide-react'
+import Link from 'next/link'
+import { Pencil, Trash2, UserCheck, UserX, LineChart, Activity, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -114,6 +115,39 @@ export function DevicesTable({ devices, wearers, isLoading, onEdit }: Props) {
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0 text-indigo-500 hover:text-indigo-600"
+                    asChild
+                    title="Lịch sử hoạt động"
+                  >
+                    <Link href={`/device/${device.id}/history`}>
+                      <Activity className="w-3.5 h-3.5" />
+                    </Link>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0 text-blue-500 hover:text-blue-600"
+                    asChild
+                    title="Nhật ký Telemetry"
+                  >
+                    <Link href={`/device/${device.id}/telemetry`}>
+                      <LineChart className="w-3.5 h-3.5" />
+                    </Link>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0 text-emerald-500 hover:text-emerald-600"
+                    asChild
+                    title="Chi tiết & Cấu hình"
+                  >
+                    <Link href={`/device/${device.id}`}>
+                      <Settings className="w-3.5 h-3.5" />
+                    </Link>
+                  </Button>
                   <Button
                     size="sm"
                     variant="ghost"

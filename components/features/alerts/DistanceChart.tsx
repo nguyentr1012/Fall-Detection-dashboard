@@ -24,8 +24,8 @@ export function DistanceChart({ data, isLoading }: Props) {
   useEffect(() => setIsMounted(true), [])
 
   const chartData = data.map((d) => ({
-    date: d.date.slice(5),
-    'km': Number(d.distance_km.toFixed(2)),
+    date: d?.date ? d.date.slice(5) : '',
+    'km': d?.distance_km != null ? Number(d.distance_km.toFixed(2)) : 0,
   }))
 
   return (

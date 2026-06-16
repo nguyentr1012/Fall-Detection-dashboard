@@ -23,8 +23,7 @@ export interface BackendWearer {
 
 export interface BackendStepsDay {
   date: string         // "YYYY-MM-DD"
-  walk_steps: number
-  run_steps: number
+  steps: number
   distance_km: number
 }
 
@@ -152,6 +151,19 @@ export const api = {
     return data.map(mapAlert)
   },
 
+  getTimeline: async (deviceId: string, limit = 20): Promise<BackendTimelineEntry[]> => {
+    return apiClient.get<BackendTimelineEntry[]>(
+      `/api/v1/history/${deviceId}/timeline?limit=${limit}`
+    )
+  },
+
+  getTelemetryHistory: async (deviceId: string, limit = 50): Promise<any[]> => {
+    // Expected to return telemetry points from InfluxDB
+    return apiClient.get<any[]>(
+      `/api/v1/history/${deviceId}/telemetry?limit=${limit}`
+    )
+  },
+
   acknowledgeAlert: async (alertId: string): Promise<void> => {
     // Backend uses is_resolved field — PATCH on the alert
     await apiClient.patch(`/api/v1/history/alerts/${alertId}/resolve`)
@@ -219,8 +231,12 @@ export const api = {
 
   // ── Steps History ────────────────────────────────────────────────────────
 
-  getStepsHistory: async (days = 7): Promise<BackendStepsDay[]> => {
-    return apiClient.get<BackendStepsDay[]>(`/api/v1/history/steps?days=${days}`)
+  getStepsHistory: async (days = 7, deviceId?: string): Promise<BackendStepsDay[]> => {
+    let url = `/api/v1/history/steps?days=${days}`
+    if (deviceId) {
+      url += `&device_id=${deviceId}`
+    }
+    return apiClient.get<BackendStepsDay[]>(url)
   },
 
   // ── Recording Session (Phase 1 — data collection) ────────────────────────

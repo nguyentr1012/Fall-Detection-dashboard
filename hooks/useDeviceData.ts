@@ -52,6 +52,22 @@ export const useDeviceAlerts = (deviceId: string, limit = 20) =>
     refetchInterval: 30_000,
   })
 
+export const useDeviceTimeline = (deviceId: string, limit = 20) =>
+  useQuery({
+    queryKey: ['timeline', deviceId, limit],
+    queryFn: () => api.getTimeline(deviceId, limit),
+    enabled: !!deviceId,
+    refetchInterval: 30_000,
+  })
+
+export const useDeviceTelemetry = (deviceId: string, limit = 50) =>
+  useQuery({
+    queryKey: ['telemetry', deviceId, limit],
+    queryFn: () => api.getTelemetryHistory(deviceId, limit),
+    enabled: !!deviceId,
+    refetchInterval: 30_000,
+  })
+
 // Wearers
 export const useWearers = () =>
   useQuery({ queryKey: ['wearers'], queryFn: api.getWearers })
@@ -146,7 +162,7 @@ export const useRegisterDevice = () => {
 export const useUpdateDevice = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: { is_active?: boolean; firmware_version?: string } }) =>
+    mutationFn: ({ id, payload }: { id: string; payload: { is_active?: boolean; firmware_version?: string; telemetry_interval?: number } }) =>
       api.updateDevice(id, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['devices'] }),
   })
@@ -161,9 +177,9 @@ export const useDeleteDevice = () => {
 }
 
 // Steps history for /alerts analytics
-export const useStepsHistory = (days = 7) =>
+export const useStepsHistory = (days = 7, deviceId?: string) =>
   useQuery({
-    queryKey: ['stepsHistory', days],
-    queryFn: () => api.getStepsHistory(days),
+    queryKey: ['stepsHistory', days, deviceId],
+    queryFn: () => api.getStepsHistory(days, deviceId),
     staleTime: 5 * 60_000,
   })
