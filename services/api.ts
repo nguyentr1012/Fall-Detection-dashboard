@@ -24,6 +24,8 @@ export interface BackendWearer {
 export interface BackendStepsDay {
   date: string         // "YYYY-MM-DD"
   steps: number
+  walk_steps?: number
+  run_steps?: number
   distance_km: number
 }
 
@@ -164,9 +166,12 @@ export const api = {
     )
   },
 
-  acknowledgeAlert: async (alertId: string): Promise<void> => {
-    // Backend uses is_resolved field — PATCH on the alert
-    await apiClient.patch(`/api/v1/history/alerts/${alertId}/resolve`)
+  acknowledgeAlert: async (alertId: string, deviceId?: string): Promise<void> => {
+    // Backend uses is_resolved field — PATCH on the alert.
+    // Truyền device_id để cơ chế Hybrid Alert Sync (protocol §4) scope fallback
+    // đúng thiết bị khi alertId là UUID tạm do FE sinh (alert realtime từ MQTT).
+    const qs = deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : ''
+    await apiClient.patch(`/api/v1/history/alerts/${alertId}/resolve${qs}`)
   },
 
   // ── Wearers ──────────────────────────────────────────────────────────────

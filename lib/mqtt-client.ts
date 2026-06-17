@@ -89,7 +89,9 @@ class MqttClientManager {
       this.isConnected = true
       this.fireConnectionChange(true)
       // Topic nhẹ (low-rate) — luôn subscribe.
-      this.client!.subscribe('eldercare/+/telemetry')
+      // Firmware publish trạng thái realtime lên `status` (KHÔNG có ai republish
+      // sang `telemetry`) → phải sub đúng `status`, nếu không telemetry store chết.
+      this.client!.subscribe('eldercare/+/status')
       this.client!.subscribe('eldercare/+/alert/fall')
       // IMU 100Hz: CHỈ subscribe khi thực sự có consumer batch (trang
       // data-collection). Tránh nuốt + parse luồng cao tần vô ích ở mọi trang.
@@ -116,9 +118,11 @@ class MqttClientManager {
           this.batchCallbacks.get('*')?.forEach(cb => cb(batch))
         }
 
-        if (topic.endsWith('/telemetry')) {
+        if (topic.endsWith('/status')) {
+          // Status payload firmware: { battery, steps, walk_steps, run_steps, ... }.
+          // `battery` là tên field firmware; chấp nhận cả `battery_pct` (mock/republish).
           const sample: TelemetrySample = {
-            battery_pct: data.battery_pct ?? 0,
+            battery_pct: data.battery_pct ?? data.battery ?? 0,
             walk_steps: data.walk_steps ?? 0,
             run_steps: data.run_steps ?? 0,
             timestamp: data.timestamp,
