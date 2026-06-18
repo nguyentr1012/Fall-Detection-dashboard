@@ -48,6 +48,8 @@ interface BackendDevice {
   is_online?: boolean
   battery_pct?: number
   last_online?: string | null
+  telemetry_interval?: number
+  fall_threshold?: number
 }
 
 interface BackendAlert {
@@ -113,9 +115,14 @@ export const api = {
     return mapDevice(data)
   },
 
-  updateDevice: async (deviceId: string, payload: { is_active?: boolean; firmware_version?: string }): Promise<Device> => {
+  updateDevice: async (deviceId: string, payload: { is_active?: boolean; firmware_version?: string; telemetry_interval?: number; fall_threshold?: number }): Promise<Device> => {
     const data = await apiClient.put<BackendDevice>(`/api/v1/devices/${deviceId}`, payload)
     return mapDevice(data)
+  },
+
+  // B5: gửi lệnh realtime QUA BACKEND (không publish MQTT thẳng từ client).
+  sendDeviceCommand: async (deviceId: string, action: 'start_stream' | 'stop_stream'): Promise<void> => {
+    await apiClient.post(`/api/v1/devices/${deviceId}/command`, { action })
   },
 
   deleteDevice: async (deviceId: string): Promise<void> => {
@@ -211,7 +218,7 @@ export const api = {
       deviceId: device.device_id,
       name: device.wearer?.full_name ?? 'Chưa gán',
       samplingRate: 100,
-      fallThreshold: 2.5,
+      fallThreshold: device.fall_threshold ?? 0.6,
       transmitInterval: 500,
       alertEnabled: true,
       wearerName: device.wearer?.full_name,

@@ -177,13 +177,14 @@ describe('mqtt-client — real mode', () => {
     const c = lastClient()
     c.emit('connect')
     expect(client.isConnected).toBe(true)
-    expect(c.subscribed).toContain('eldercare/+/telemetry')
+    // B1: realtime telemetry đến từ topic `status` (firmware publish thật), KHÔNG phải `telemetry`.
+    expect(c.subscribed).toContain('eldercare/+/status')
     expect(c.subscribed).toContain('eldercare/+/alert/fall')
     // không có batch consumer → KHÔNG subscribe imu/raw
     expect(c.subscribed).not.toContain('eldercare/+/imu/raw')
   })
 
-  it('parse message /telemetry và fire telemetry callback', async () => {
+  it('parse message /status và fire telemetry callback (B1)', async () => {
     const client = await loadClient()
     const got: TelemetrySample[] = []
     client.connect('dev_1')
@@ -191,13 +192,14 @@ describe('mqtt-client — real mode', () => {
     const c = lastClient()
     c.emit('connect')
     client.subscribe('dev_9', undefined, undefined, (_id, d) => got.push(d))
-    const payload = Buffer.from(JSON.stringify({ battery_pct: 42, walk_steps: 10, run_steps: 2, timestamp: 999 }))
-    c.emit('message', 'eldercare/dev_9/telemetry', payload)
+    // Firmware status dùng key `battery`; handler map sang battery_pct.
+    const payload = Buffer.from(JSON.stringify({ battery: 42, walk_steps: 10, run_steps: 2, timestamp: 999 }))
+    c.emit('message', 'eldercare/dev_9/status', payload)
     expect(got).toHaveLength(1)
     expect(got[0]).toEqual({ battery_pct: 42, walk_steps: 10, run_steps: 2, timestamp: 999 })
   })
 
-  it('telemetry thiếu field → default 0', async () => {
+  it('status thiếu field → default 0 (B1)', async () => {
     const client = await loadClient()
     const got: TelemetrySample[] = []
     client.connect('dev_1')
@@ -205,7 +207,7 @@ describe('mqtt-client — real mode', () => {
     const c = lastClient()
     c.emit('connect')
     client.subscribe('dev_9', undefined, undefined, (_id, d) => got.push(d))
-    c.emit('message', 'eldercare/dev_9/telemetry', Buffer.from(JSON.stringify({})))
+    c.emit('message', 'eldercare/dev_9/status', Buffer.from(JSON.stringify({})))
     expect(got[0]).toMatchObject({ battery_pct: 0, walk_steps: 0, run_steps: 0 })
   })
 
@@ -245,8 +247,9 @@ describe('mqtt-client — real mode', () => {
     const c = lastClient()
     c.emit('connect')
     client.subscribe('dev_9', b => batches.push(b)) // batch consumer đầu tiên
-    expect(c.subscribed).toContain('eldercare/+/imu/raw')
-    c.emit('message', 'eldercare/dev_9/imu/raw', Buffer.from(JSON.stringify({ ts: 1000, fs: 100, d: [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]] })))
+    // Code thật subscribe `imu_stream` (không phải `imu/raw`) — test trước lệch contract.
+    expect(c.subscribed).toContain('eldercare/+/imu_stream')
+    c.emit('message', 'eldercare/dev_9/imu_stream', Buffer.from(JSON.stringify({ ts: 1000, fs: 100, d: [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]] })))
     expect(batches).toHaveLength(1)
     expect(batches[0].samples).toHaveLength(2)
     expect(batches[0].samples[0]).toMatchObject({ ax: 1, ay: 2, az: 3, gx: 4, gy: 5, gz: 6 })

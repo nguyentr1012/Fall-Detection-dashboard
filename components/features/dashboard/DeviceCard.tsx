@@ -1,7 +1,9 @@
 import React from 'react'
 import Link from 'next/link'
+import { Footprints } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Device, Alert } from '@/src/types'
+import type { DeviceTelemetry } from '@/store/useTelemetryStore'
 
 type DeviceStatus = 'online' | 'offline' | 'alert' | 'low'
 
@@ -49,13 +51,14 @@ function BatteryBar({ level, status }: { level: number; status: DeviceStatus }) 
 
 interface Props {
   device: Device
+  realtime?: DeviceTelemetry
   criticalAlerts: Alert[]
   isSelected: boolean
   onSelect: (id: string) => void
 }
 
 export const DeviceCard = React.memo(function DeviceCard({
-  device, criticalAlerts, isSelected, onSelect,
+  device, realtime, criticalAlerts, isSelected, onSelect,
 }: Props) {
   const effectiveStatus = getEffectiveStatus(device, criticalAlerts)
   const cfg = STATUS_CONFIG[effectiveStatus]
@@ -104,6 +107,24 @@ export const DeviceCard = React.memo(function DeviceCard({
           </div>
         )}
       </div>
+
+      {/* Steps realtime (từ MQTT status: walk/run tách riêng) */}
+      {realtime && (
+        <div className="mb-3">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1 text-[10px] text-gray-400 uppercase tracking-wide font-medium">
+              <Footprints className="size-3" /> Steps
+            </span>
+            <span className="text-xs font-semibold text-gray-700">
+              {(realtime.walk_steps + realtime.run_steps).toLocaleString('vi-VN')}
+            </span>
+          </div>
+          <div className="flex items-center gap-3 mt-0.5 text-[10px] text-gray-400">
+            <span>Đi bộ {realtime.walk_steps.toLocaleString('vi-VN')}</span>
+            <span>Chạy {realtime.run_steps.toLocaleString('vi-VN')}</span>
+          </div>
+        </div>
+      )}
 
       {/* Links */}
       <div className="space-y-1 border-t border-gray-100 pt-2">

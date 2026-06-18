@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
-import { Cpu, Wifi, Activity, Battery, Clock, Power, ShieldAlert } from 'lucide-react'
+import { Cpu, Wifi, Activity, Battery, Clock, Power, ShieldAlert, Gauge } from 'lucide-react'
 import { toast } from 'sonner'
 
 export function DeviceConfig({ deviceId }: { deviceId: string }) {
@@ -19,6 +19,7 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
 
   const [interval, setInterval] = useState('5')
   const [isActive, setIsActive] = useState(true)
+  const [fallThreshold, setFallThreshold] = useState(0.6)
 
   useEffect(() => {
     if (device) {
@@ -27,10 +28,22 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
     }
   }, [device])
 
+  useEffect(() => {
+    if (config?.fallThreshold !== undefined) setFallThreshold(config.fallThreshold)
+  }, [config])
+
   const handleSaveInterval = () => {
     updateDevice({ id: deviceId, payload: { telemetry_interval: parseInt(interval, 10) } }, {
       onSuccess: () => {
         toast.success('Đã gửi cấu hình chu kỳ gửi dữ liệu xuống thiết bị!')
+      }
+    })
+  }
+
+  const handleSaveFallThreshold = () => {
+    updateDevice({ id: deviceId, payload: { fall_threshold: fallThreshold } }, {
+      onSuccess: () => {
+        toast.success(`Đã gửi ngưỡng phát hiện ngã (${Math.round(fallThreshold * 100)}%) xuống thiết bị!`)
       }
     })
   }
@@ -108,6 +121,38 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
             </div>
             <Button onClick={handleSaveInterval} disabled={updatingDevice} className="w-full md:w-auto">Lưu chu kỳ</Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Gauge className="w-4 h-4 text-purple-500" />
+            Độ nhạy phát hiện ngã
+          </CardTitle>
+          <CardDescription>Ngưỡng xác suất AI để chốt &quot;ngã&quot;. Cao = ít báo nhầm nhưng dễ bỏ sót.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-gray-700">Ngưỡng (fall_threshold)</label>
+            <span className="text-sm font-semibold text-purple-600">{Math.round(fallThreshold * 100)}%</span>
+          </div>
+          <input
+            type="range"
+            min={0.15}
+            max={0.95}
+            step={0.05}
+            value={fallThreshold}
+            onChange={e => setFallThreshold(parseFloat(e.target.value))}
+            className="w-full accent-purple-600"
+          />
+          <div className="flex justify-between text-[10px] text-gray-400">
+            <span>15% — nhạy, nhiều báo nhầm</span>
+            <span>95% — chắc chắn, dễ bỏ sót</span>
+          </div>
+          <Button onClick={handleSaveFallThreshold} disabled={updatingDevice} className="w-full md:w-auto">
+            Lưu ngưỡng
+          </Button>
         </CardContent>
       </Card>
 

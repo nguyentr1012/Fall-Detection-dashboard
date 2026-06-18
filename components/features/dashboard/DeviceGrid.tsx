@@ -42,6 +42,7 @@ export function DeviceGrid({ devices, alerts, isLoading, selectedId, onSelect }:
           <DeviceCard
             key={d.id}
             device={device}
+            realtime={rt}
             criticalAlerts={alerts}
             isSelected={selectedId === d.id}
             onSelect={onSelect}

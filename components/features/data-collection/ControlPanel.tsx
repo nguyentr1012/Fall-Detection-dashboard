@@ -20,10 +20,11 @@ interface Props {
   onStart: () => void
   onStop: () => void
   disabled?: boolean
+  pending?: boolean   // B5: đang chờ backend xác nhận lệnh start/stop
 }
 
 export function ControlPanel({
-  isRecording, sampleCount, label, onLabelChange, onStart, onStop, disabled,
+  isRecording, sampleCount, label, onLabelChange, onStart, onStop, disabled, pending,
 }: Props) {
   const elapsed = sampleCount / 100
 
@@ -45,12 +46,12 @@ export function ControlPanel({
       </Select>
 
       {isRecording ? (
-        <Button variant="destructive" onClick={onStop}>
-          ⏹ Dừng &amp; Lưu CSV
+        <Button variant="destructive" onClick={onStop} disabled={pending}>
+          {pending ? '⏳ Đang gửi lệnh…' : '⏹ Dừng & Lưu CSV'}
         </Button>
       ) : (
-        <Button onClick={onStart} disabled={disabled}>
-          ▶ Bắt đầu ghi
+        <Button onClick={onStart} disabled={disabled || pending}>
+          {pending ? '⏳ Đang gửi lệnh…' : '▶ Bắt đầu ghi'}
         </Button>
       )}
 

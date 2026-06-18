@@ -20,19 +20,23 @@ export const useTelemetryStore = create<TelemetryStore>((set, get) => ({
   mqttConnected: false,
 
   updateTelemetry(deviceId, data) {
-    set(state => ({
-      telemetry: {
-        ...state.telemetry,
-        [deviceId]: {
-          ...(state.telemetry[deviceId] ?? {}),
-          battery_pct: 0,
-          walk_steps: 0,
-          run_steps: 0,
-          ...data,
-          last_seen: data.last_seen ?? Date.now(),
+    set(state => {
+      const prev = state.telemetry[deviceId]
+      return {
+        telemetry: {
+          ...state.telemetry,
+          // Default 0 CHỈ khi chưa có giá trị cũ — partial update (vd chỉ battery)
+          // phải GIỮ NGUYÊN walk_steps/run_steps đã có, không ép về 0.
+          [deviceId]: {
+            battery_pct: prev?.battery_pct ?? 0,
+            walk_steps: prev?.walk_steps ?? 0,
+            run_steps: prev?.run_steps ?? 0,
+            ...data,
+            last_seen: data.last_seen ?? Date.now(),
+          },
         },
-      },
-    }))
+      }
+    })
   },
 
   getTelemetry(deviceId) {

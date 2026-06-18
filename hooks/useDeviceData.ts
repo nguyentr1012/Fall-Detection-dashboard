@@ -162,11 +162,22 @@ export const useRegisterDevice = () => {
 export const useUpdateDevice = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: { is_active?: boolean; firmware_version?: string; telemetry_interval?: number } }) =>
+    mutationFn: ({ id, payload }: { id: string; payload: { is_active?: boolean; firmware_version?: string; telemetry_interval?: number; fall_threshold?: number } }) =>
       api.updateDevice(id, payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['devices'] }),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: ['devices'] })
+      qc.invalidateQueries({ queryKey: ['device', id] })
+      qc.invalidateQueries({ queryKey: ['config', id] })
+    },
   })
 }
+
+// B5: gửi lệnh start/stop_stream qua backend (có isPending cho loading UX)
+export const useSendDeviceCommand = () =>
+  useMutation({
+    mutationFn: ({ deviceId, action }: { deviceId: string; action: 'start_stream' | 'stop_stream' }) =>
+      api.sendDeviceCommand(deviceId, action),
+  })
 
 export const useDeleteDevice = () => {
   const qc = useQueryClient()

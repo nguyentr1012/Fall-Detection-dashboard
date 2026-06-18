@@ -1,7 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { ReactElement } from 'react'
 import { TopNav } from '@/components/layout/TopNav'
 import { useTelemetryStore } from '@/store/useTelemetryStore'
+
+// TopNav render NotificationBell -> useCombinedAlerts (React Query) nên test
+// PHẢI bọc QueryClientProvider, nếu không lỗi "No QueryClient set".
+function render(ui: ReactElement) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const wrap = (node: ReactElement) => <QueryClientProvider client={qc}>{node}</QueryClientProvider>
+  const result = rtlRender(wrap(ui))
+  // rerender cũng phải bọc provider (cùng QueryClient) nếu không lỗi lại.
+  return { ...result, rerender: (next: ReactElement) => result.rerender(wrap(next)) }
+}
 
 beforeEach(() => {
   useTelemetryStore.setState({ telemetry: {}, mqttConnected: false })

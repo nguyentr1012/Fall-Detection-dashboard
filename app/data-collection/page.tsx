@@ -1,7 +1,7 @@
 'use client'
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { toast } from 'sonner'
-import { useDevices, useSaveRecording } from '@/hooks/useDeviceData'
+import { useDevices, useSaveRecording, useSendDeviceCommand } from '@/hooks/useDeviceData'
 import { useMqtt } from '@/hooks/useMqtt'
 import { DeviceSelector } from '@/components/features/data-collection/DeviceSelector'
 import { ControlPanel } from '@/components/features/data-collection/ControlPanel'
@@ -30,7 +30,9 @@ export default function DataCollectionPage() {
   const isRecordingRef = useRef(false)
   const startTimeRef = useRef(0)
 
-  const { isConnected, lastBatch, sendCommand } = useMqtt(selectedDeviceId)
+  const { isConnected, lastBatch } = useMqtt(selectedDeviceId)
+  // B5: start/stop_stream đi qua backend (HTTP) thay vì FE publish MQTT thẳng.
+  const { mutate: sendCommand, isPending: commandPending } = useSendDeviceCommand()
 
   // Xử lý batch MQTT (chạy mỗi 500ms = 2Hz)
   useEffect(() => {
@@ -66,18 +68,24 @@ export default function DataCollectionPage() {
   }, [lastBatch])
 
   const handleStart = useCallback(() => {
+    if (!selectedDeviceId) return
     recordBuffer.current = []
     setSampleCount(0)
     startTimeRef.current = Date.now()
-    isRecordingRef.current = true
-    setIsRecording(true)
-    sendCommand('start_stream')
-  }, [sendCommand])
+    // Chỉ vào trạng thái recording SAU khi backend xác nhận đã publish lệnh.
+    sendCommand({ deviceId: selectedDeviceId, action: 'start_stream' }, {
+      onSuccess: () => {
+        isRecordingRef.current = true
+        setIsRecording(true)
+      },
+      onError: () => toast.error('Không gửi được lệnh bắt đầu stream, thử lại.'),
+    })
+  }, [selectedDeviceId, sendCommand])
 
   const handleStop = useCallback((autoStopped = false) => {
     isRecordingRef.current = false
     setIsRecording(false)
-    sendCommand('stop_stream')
+    if (selectedDeviceId) sendCommand({ deviceId: selectedDeviceId, action: 'stop_stream' })
 
     const snapshot = [...recordBuffer.current]
     recordBuffer.current = []
@@ -130,6 +138,7 @@ export default function DataCollectionPage() {
         onStart={handleStart}
         onStop={() => handleStop(false)}
         disabled={!selectedDeviceId || !isConnected}
+        pending={commandPending}
       />
 
       {/* Zone 3: Biểu đồ Realtime */}
