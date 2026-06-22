@@ -50,6 +50,8 @@ interface BackendDevice {
   last_online?: string | null
   telemetry_interval?: number
   fall_threshold?: number
+  fall_cooldown?: number
+  last_rssi?: number
 }
 
 interface BackendAlert {
@@ -77,6 +79,11 @@ function mapDevice(d: BackendDevice): Device {
     location: d.device_id,
     wearerId: d.current_wearer_id ?? null,
     batteryLevel: d.battery_pct,
+    is_active: d.is_active,
+    telemetry_interval: d.telemetry_interval,
+    fall_threshold: d.fall_threshold,
+    fall_cooldown: d.fall_cooldown,
+    last_rssi: d.last_rssi,
   }
 }
 
@@ -115,7 +122,7 @@ export const api = {
     return mapDevice(data)
   },
 
-  updateDevice: async (deviceId: string, payload: { is_active?: boolean; firmware_version?: string; telemetry_interval?: number; fall_threshold?: number }): Promise<Device> => {
+  updateDevice: async (deviceId: string, payload: { is_active?: boolean; firmware_version?: string; telemetry_interval?: number; fall_threshold?: number; fall_cooldown?: number }): Promise<Device> => {
     const data = await apiClient.put<BackendDevice>(`/api/v1/devices/${deviceId}`, payload)
     return mapDevice(data)
   },

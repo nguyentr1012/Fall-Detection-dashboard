@@ -18,12 +18,20 @@ interface Props {
   deviceId: string
 }
 
-function getSignalLabel(csq: number | null | undefined) {
-  if (csq == null || csq === 99) return { text: 'Không có tín hiệu / Mất sóng', color: 'text-red-500' }
-  if (csq <= 9) return { text: 'Tín hiệu yếu (Chập chờn)', color: 'text-red-400' }
-  if (csq <= 14) return { text: 'Tín hiệu trung bình (Ổn định)', color: 'text-yellow-500' }
-  if (csq <= 19) return { text: 'Tín hiệu tốt', color: 'text-green-500' }
-  return { text: 'Tín hiệu rất tốt (Mạnh)', color: 'text-blue-500' }
+function getSignalLabel(rssi: number | null | undefined) {
+  if (rssi == null || rssi === 0 || rssi === 99) return { text: 'Không có tín hiệu / Mất sóng', color: 'text-red-500' }
+  // Xử lý cả 2 trường hợp: CSQ (0-31) hoặc WiFi RSSI (-100 đến -30)
+  if (rssi > 0) {
+    if (rssi <= 9) return { text: 'Tín hiệu yếu (Chập chờn)', color: 'text-red-400' }
+    if (rssi <= 14) return { text: 'Tín hiệu trung bình (Ổn định)', color: 'text-yellow-500' }
+    if (rssi <= 19) return { text: 'Tín hiệu tốt', color: 'text-green-500' }
+    return { text: 'Tín hiệu rất tốt (Mạnh)', color: 'text-blue-500' }
+  } else {
+    if (rssi < -80) return { text: 'Tín hiệu yếu (Chập chờn)', color: 'text-red-400' }
+    if (rssi < -70) return { text: 'Tín hiệu trung bình (Ổn định)', color: 'text-yellow-500' }
+    if (rssi < -60) return { text: 'Tín hiệu tốt', color: 'text-green-500' }
+    return { text: 'Tín hiệu rất tốt (Mạnh)', color: 'text-blue-500' }
+  }
 }
 
 export function VitalsPageClient({ deviceId }: { deviceId: string }) {
@@ -51,7 +59,9 @@ export function VitalsPageClient({ deviceId }: { deviceId: string }) {
   // Latest status values
   const latestTelemetry = telemetry[0] || {}
   const currentBattery = latestTelemetry.battery_pct ?? device?.batteryLevel ?? 0
-  const currentRssi = latestTelemetry.rssi
+  const currentRssi = latestTelemetry.rssi ?? device?.last_rssi ?? null;
+  
+  const isWifi = currentRssi != null && currentRssi < 0;
 
   const signalInfo = getSignalLabel(currentRssi)
 
@@ -75,9 +85,13 @@ export function VitalsPageClient({ deviceId }: { deviceId: string }) {
         <Card className="border-l-4 border-l-blue-500">
           <CardContent className="pt-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase">Tín hiệu di động (CSQ)</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase">
+                {isWifi ? 'Tín hiệu mạng (WiFi)' : 'Tín hiệu di động (CSQ)'}
+              </p>
               <h3 className="text-2xl font-bold mt-1">
-                {currentRssi != null && currentRssi !== 99 ? `${currentRssi} / 31` : '—'}
+                {currentRssi != null && currentRssi !== 0 && currentRssi !== 99 
+                  ? (currentRssi > 0 ? `${currentRssi} / 31` : `${currentRssi} dBm`) 
+                  : '—'}
               </h3>
               <p className={`text-[11px] font-semibold mt-0.5 ${signalInfo.color}`}>
                 {signalInfo.text}
@@ -99,7 +113,7 @@ export function VitalsPageClient({ deviceId }: { deviceId: string }) {
                 )}
               </h3>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                SIM Module: A7680C 4G LTE
+                Mạng kết nối: {isWifi ? 'WiFi' : '4G LTE'}
               </p>
             </div>
             <span className="text-3xl">⚙️</span>
@@ -147,8 +161,8 @@ export function VitalsPageClient({ deviceId }: { deviceId: string }) {
         {/* RSSI Signal Trend Chart */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base font-semibold">Cường độ sóng di động (CSQ Trend)</CardTitle>
-            <p className="text-xs text-muted-foreground">Lịch sử thu sóng 4G LTE từ module SIM A7680C</p>
+            <CardTitle className="text-base font-semibold">Cường độ sóng (RSSI Trend)</CardTitle>
+            <p className="text-xs text-muted-foreground">Lịch sử thu sóng kết nối (WiFi/4G) theo thời gian</p>
           </CardHeader>
           <CardContent className="h-[250px]">
             {isLoading ? (
@@ -168,10 +182,10 @@ export function VitalsPageClient({ deviceId }: { deviceId: string }) {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="timeStr" tick={{ fontSize: 10 }} minTickGap={20} />
-                  <YAxis domain={[0, 31]} ticks={[0, 10, 20, 31]} tick={{ fontSize: 10 }} />
+                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10 }} />
                   <Tooltip
                     contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                    formatter={(v) => [`${v} / 31`, 'Mức sóng (CSQ)']}
+                    formatter={(v: number) => [v > 0 ? `${v} / 31` : `${v} dBm`, 'Mức sóng']}
                   />
                   <Area
                     type="monotone"

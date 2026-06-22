@@ -29,9 +29,8 @@ export function DeviceSubNav({ deviceId }: Props) {
     },
     {
       label: 'Cấu hình thiết bị',
-      href: `/device/${deviceId}`,
-      // active if it matches exactly /device/[id] and does not end with sub-routes
-      active: pathname === `/device/${deviceId}`,
+      href: `/device/${deviceId}/settings`,
+      active: pathname.endsWith(`/device/${deviceId}/settings`),
     },
   ]
 

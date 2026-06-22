@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useDevice, useUpdateDevice, useDeviceConfig, useUpdateDeviceConfig } from '@/hooks/useDeviceData'
+import { useDevice, useUpdateDevice } from '@/hooks/useDeviceData'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -13,24 +13,20 @@ import { toast } from 'sonner'
 export function DeviceConfig({ deviceId }: { deviceId: string }) {
   const { data: device, isLoading: deviceLoading } = useDevice(deviceId)
   const { mutate: updateDevice, isPending: updatingDevice } = useUpdateDevice()
-  
-  const { data: config, isLoading: configLoading } = useDeviceConfig(deviceId)
-  const { mutate: updateConfig, isPending: updatingConfig } = useUpdateDeviceConfig()
 
   const [interval, setInterval] = useState('5')
   const [isActive, setIsActive] = useState(true)
   const [fallThreshold, setFallThreshold] = useState(0.6)
+  const [fallCooldown, setFallCooldown] = useState('15')
 
   useEffect(() => {
     if (device) {
       if (device.is_active !== undefined) setIsActive(device.is_active)
       if (device.telemetry_interval) setInterval(device.telemetry_interval.toString())
+      if (device.fall_threshold !== undefined) setFallThreshold(device.fall_threshold)
+      if (device.fall_cooldown !== undefined) setFallCooldown(device.fall_cooldown.toString())
     }
   }, [device])
-
-  useEffect(() => {
-    if (config?.fallThreshold !== undefined) setFallThreshold(config.fallThreshold)
-  }, [config])
 
   const handleSaveInterval = () => {
     updateDevice({ id: deviceId, payload: { telemetry_interval: parseInt(interval, 10) } }, {
@@ -48,6 +44,14 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
     })
   }
 
+  const handleSaveFallCooldown = () => {
+    updateDevice({ id: deviceId, payload: { fall_cooldown: parseInt(fallCooldown, 10) } }, {
+      onSuccess: () => {
+        toast.success(`Đã gửi thời gian hồi cảnh báo ngã (${fallCooldown}s) xuống thiết bị!`)
+      }
+    })
+  }
+
   const handleToggleActive = (checked: boolean) => {
     setIsActive(checked)
     updateDevice({ id: deviceId, payload: { is_active: checked } }, {
@@ -57,7 +61,7 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
     })
   }
 
-  if (deviceLoading || configLoading) return <Skeleton className="h-60 w-full rounded-xl" />
+  if (deviceLoading) return <Skeleton className="h-60 w-full rounded-xl" />
   if (!device) return null
 
   return (
@@ -153,6 +157,38 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
           <Button onClick={handleSaveFallThreshold} disabled={updatingDevice} className="w-full md:w-auto">
             Lưu ngưỡng
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Clock className="w-4 h-4 text-orange-500" />
+            Thời gian hồi cảnh báo ngã
+          </CardTitle>
+          <CardDescription>Thời gian thiết bị im lặng sau khi báo ngã để tránh cảnh báo spam trùng lặp.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col md:flex-row gap-4 items-end">
+            <div className="space-y-2 flex-1">
+              <label className="text-xs font-medium text-gray-700">Cooldown (giây)</label>
+              <Select value={fallCooldown} onValueChange={setFallCooldown}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Chọn thời gian" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5 giây</SelectItem>
+                  <SelectItem value="15">15 giây (Mặc định)</SelectItem>
+                  <SelectItem value="30">30 giây</SelectItem>
+                  <SelectItem value="60">1 phút</SelectItem>
+                  <SelectItem value="300">5 phút</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleSaveFallCooldown} disabled={updatingDevice} className="w-full md:w-auto">
+              Lưu thời gian
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

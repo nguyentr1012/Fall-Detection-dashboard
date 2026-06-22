@@ -162,7 +162,7 @@ export const useRegisterDevice = () => {
 export const useUpdateDevice = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: { is_active?: boolean; firmware_version?: string; telemetry_interval?: number; fall_threshold?: number } }) =>
+    mutationFn: ({ id, payload }: { id: string; payload: { is_active?: boolean; firmware_version?: string; telemetry_interval?: number; fall_threshold?: number; fall_cooldown?: number } }) =>
       api.updateDevice(id, payload),
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: ['devices'] })

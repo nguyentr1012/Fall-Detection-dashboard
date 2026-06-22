@@ -37,6 +37,9 @@ export interface Device{
     wearerId?: string | null;
     is_active?: boolean;
     telemetry_interval?: number;
+    fall_threshold?: number;
+    fall_cooldown?: number;
+    last_rssi?: number;
 }
 
 export interface WearerInfo {

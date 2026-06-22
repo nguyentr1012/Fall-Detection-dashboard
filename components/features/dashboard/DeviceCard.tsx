@@ -1,6 +1,6 @@
 import React from 'react'
 import Link from 'next/link'
-import { Footprints } from 'lucide-react'
+import { Footprints, Wifi } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Device, Alert } from '@/src/types'
 import type { DeviceTelemetry } from '@/store/useTelemetryStore'
@@ -49,6 +49,16 @@ function BatteryBar({ level, status }: { level: number; status: DeviceStatus }) 
   )
 }
 
+function SignalIcon({ rssi }: { rssi: number }) {
+  const color = rssi > -60 ? 'text-green-500' : rssi > -80 ? 'text-yellow-500' : 'text-red-500'
+  return (
+    <div className="flex items-center gap-1" title={`${rssi} dBm`}>
+      <Wifi className={cn("size-3", color)} />
+      <span className={cn("text-[10px] font-medium", color)}>{rssi} dBm</span>
+    </div>
+  )
+}
+
 interface Props {
   device: Device
   realtime?: DeviceTelemetry
@@ -79,7 +89,10 @@ export const DeviceCard = React.memo(function DeviceCard({
       {/* Header */}
       <div className="flex items-start justify-between mb-2">
         <div className="min-w-0">
-          <p className="text-[11px] text-gray-400">Device {deviceNum}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-[11px] text-gray-400">Device {deviceNum}</p>
+            {device.last_rssi !== undefined && <SignalIcon rssi={device.last_rssi} />}
+          </div>
           <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{device.name}</p>
           <p className="text-xs text-gray-500 truncate">{device.location}</p>
         </div>
