@@ -607,12 +607,13 @@
         "operationId": "get_alert_history_api_v1_history_alerts_get",
         "parameters": [
           {
-            "name": "device_id",
+            "name": "wearer_id",
             "in": "query",
             "required": false,
             "schema": {
               "type": "string",
-              "title": "Device Id"
+              "format": "uuid",
+              "title": "Wearer Id"
             }
           },
           {
@@ -706,22 +707,23 @@
         }
       }
     },
-    "/api/v1/history/{device_id}/timeline": {
+    "/api/v1/history/{wearer_id}/timeline": {
       "get": {
         "tags": [
           "history"
         ],
-        "summary": "Get Device Timeline",
-        "description": "Get activity timeline by merging Alerts and DeviceEvents.",
-        "operationId": "get_device_timeline_api_v1_history__device_id__timeline_get",
+        "summary": "Get Wearer Timeline",
+        "description": "Get activity timeline by merging Alerts and DeviceEvents for a wearer.",
+        "operationId": "get_wearer_timeline_api_v1_history__wearer_id__timeline_get",
         "parameters": [
           {
-            "name": "device_id",
+            "name": "wearer_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Device Id"
+              "format": "uuid",
+              "title": "Wearer Id"
             }
           },
           {
@@ -880,6 +882,13 @@
           "device_id": {
             "type": "string",
             "title": "Device Id"
+          },
+          "wearer_id": {
+            "anyOf": [
+              { "type": "string", "format": "uuid" },
+              { "type": "null" }
+            ],
+            "title": "Wearer Id"
           },
           "alert_type": {
             "type": "string",

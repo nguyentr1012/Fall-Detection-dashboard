@@ -2,38 +2,38 @@
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import type { Device } from '@/src/types'
+import type { BackendWearer } from '@/services/api'
 
 interface Props {
-  devices: Device[]
-  deviceFilter: string
+  wearers: BackendWearer[]
+  wearerFilter: string
   typeFilter: string
   dateFilter: string
-  onDeviceChange: (v: string) => void
+  onWearerChange: (v: string) => void
   onTypeChange: (v: string) => void
   onDateChange: (v: string) => void
 }
 
 export function AlertFilters({
-  devices,
-  deviceFilter,
+  wearers,
+  wearerFilter,
   typeFilter,
   dateFilter,
-  onDeviceChange,
+  onWearerChange,
   onTypeChange,
   onDateChange,
 }: Props) {
   return (
     <div className="flex flex-wrap gap-3">
-      <Select value={deviceFilter} onValueChange={onDeviceChange}>
+      <Select value={wearerFilter} onValueChange={onWearerChange}>
         <SelectTrigger className="w-44">
-          <SelectValue placeholder="Tất cả thiết bị" />
+          <SelectValue placeholder="Tất cả người đeo" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Tất cả thiết bị</SelectItem>
-          {devices.map((d) => (
-            <SelectItem key={d.id} value={d.id}>
-              {d.id} {d.name !== 'Chưa gán' ? `(${d.name})` : ''}
+          <SelectItem value="all">Tất cả người đeo</SelectItem>
+          {wearers.map((w) => (
+            <SelectItem key={w.id} value={w.id}>
+              {w.full_name}
             </SelectItem>
           ))}
         </SelectContent>
@@ -58,9 +58,9 @@ export function AlertFilters({
         className="w-40"
       />
 
-      {(deviceFilter !== 'all' || typeFilter !== 'all' || dateFilter) && (
+      {(wearerFilter !== 'all' || typeFilter !== 'all' || dateFilter) && (
         <button
-          onClick={() => { onDeviceChange('all'); onTypeChange('all'); onDateChange('') }}
+          onClick={() => { onWearerChange('all'); onTypeChange('all'); onDateChange('') }}
           className="text-sm text-muted-foreground hover:text-foreground underline"
         >
           Xóa bộ lọc

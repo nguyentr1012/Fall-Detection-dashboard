@@ -12,6 +12,7 @@ import {
   Diamond,
   LogOut,
 } from 'lucide-react'
+import { useCurrentUser } from '@/hooks/useDeviceData'
 
 const NAV_ITEMS = [
   { label: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -27,6 +28,7 @@ interface Props {
 
 export function Sidebar({ isOpen }: Props) {
   const pathname = usePathname()
+  const { data: currentUser } = useCurrentUser()
 
   return (
     <aside
@@ -69,6 +71,24 @@ export function Sidebar({ isOpen }: Props) {
           )
         })}
       </nav>
+
+      {/* Settings — ADMIN only */}
+      {currentUser?.role === 'ADMIN' && (
+        <div className="px-2 pb-1">
+          <Link
+            href="/settings"
+            className={cn(
+              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
+              pathname === '/settings'
+                ? 'bg-blue-50 text-blue-700 font-medium'
+                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            )}
+          >
+            <Settings className="size-4 shrink-0" />
+            <span className="truncate">Settings</span>
+          </Link>
+        </div>
+      )}
 
       {/* Bottom */}
       <div className="px-2 pb-3 space-y-2">

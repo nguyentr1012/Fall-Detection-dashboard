@@ -6,7 +6,24 @@
  */
 
 import { apiClient } from '@/lib/apiClient'
-import type { Device, Alert, DeviceConfig, RecordingSession } from '@/src/types'
+import type { Device, Alert, DeviceConfig } from '@/src/types'
+
+export interface FirmwareVersion {
+  version: string
+  release_date: string
+  changelog: string
+  is_stable: boolean
+  is_latest: boolean
+  bin_size: number
+  sha256: string
+  download_url: string
+}
+
+export interface CurrentUser {
+  id: string
+  username: string
+  role: 'ADMIN' | 'MANAGER'
+}
 
 // ---------------------------------------------------------------------------
 // Shape of raw responses from FastAPI (matching backend Pydantic schemas)
@@ -57,6 +74,7 @@ interface BackendDevice {
 interface BackendAlert {
   id: string
   device_id: string
+  wearer_id?: string | null
   alert_type: string
   confidence: number
   is_resolved: boolean
@@ -91,6 +109,7 @@ function mapAlert(a: BackendAlert): Alert {
   return {
     id: String(a.id),
     deviceId: a.device_id,
+    wearerId: a.wearer_id ?? null,
     deviceName: a.device_id,
     severity: 'critical',
     type: 'fall_detected',
@@ -103,6 +122,41 @@ function mapAlert(a: BackendAlert): Alert {
 // ---------------------------------------------------------------------------
 // API surface — mirrors the original shape so no consumer hooks change
 // ---------------------------------------------------------------------------
+
+export interface BackendVerificationSession {
+  id: string
+  device_id: string
+  subject_code: string
+  activity_code: string
+  trial_no: string
+  sample_count: number | null
+  duration_s: number | null
+  file_path: string | null
+  created_at: string
+}
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
+
+function getAuthHeader(): Record<string, string> {
+  if (typeof document === 'undefined') return {}
+  const match = document.cookie.match(/(?:^|;\s*)auth_token=([^;]*)/)
+  const token = match ? decodeURIComponent(match[1]) : undefined
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+async function downloadFile(url: string, filename: string): Promise<void> {
+  const res = await fetch(url, { headers: getAuthHeader() })
+  if (!res.ok) throw new Error(`Download thất bại: ${res.status}`)
+  const blob = await res.blob()
+  const objectUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(objectUrl)
+}
 
 export const api = {
   // ── Devices ──────────────────────────────────────────────────────────────
@@ -157,19 +211,19 @@ export const api = {
     const data = await apiClient.get<BackendAlert[]>(
       `/api/v1/history/alerts?limit=${limit}`
     )
-    return data.map(mapAlert)
+    return data.filter(a => !!a.wearer_id).map(mapAlert)
   },
 
-  getDeviceAlerts: async (deviceId: string, limit = 20): Promise<Alert[]> => {
+  getWearerAlerts: async (wearerId: string, limit = 20): Promise<Alert[]> => {
     const data = await apiClient.get<BackendAlert[]>(
-      `/api/v1/history/alerts?device_id=${deviceId}&limit=${limit}`
+      `/api/v1/history/alerts?wearer_id=${wearerId}&limit=${limit}`
     )
     return data.map(mapAlert)
   },
 
-  getTimeline: async (deviceId: string, limit = 20): Promise<BackendTimelineEntry[]> => {
+  getTimeline: async (wearerId: string, limit = 20): Promise<BackendTimelineEntry[]> => {
     return apiClient.get<BackendTimelineEntry[]>(
-      `/api/v1/history/${deviceId}/timeline?limit=${limit}`
+      `/api/v1/history/${wearerId}/timeline?limit=${limit}`
     )
   },
 
@@ -258,21 +312,78 @@ export const api = {
     return apiClient.get<BackendStepsDay[]>(url)
   },
 
-  // ── Recording Session (Phase 1 — data collection) ────────────────────────
+  // ── Firmware OTA ─────────────────────────────────────────────────────────
 
-  saveRecordingSession: async (session: RecordingSession): Promise<{ id: string }> => {
-    // Encode samples as JSON payload to backend (custom endpoint expected)
-    const data = await apiClient.post<{ id: string }>(
-      '/api/v1/data-collection/sessions',
-      {
-        device_id: session.deviceId,
-        label: session.label,
-        start_timestamp: session.startTimestamp,
-        end_timestamp: session.endTimestamp,
-        sample_count: session.sampleCount,
-        samples: session.samples,
-      }
+  getFirmwareVersions: async (): Promise<FirmwareVersion[]> => {
+    return apiClient.get<FirmwareVersion[]>('/api/v1/firmware/versions')
+  },
+
+  triggerFirmwareUpdate: async (deviceId: string, version: string, downloadUrl: string): Promise<void> => {
+    await apiClient.post(`/api/v1/firmware/${deviceId}/update`, {
+      version,
+      download_url: downloadUrl,
+    })
+  },
+
+  uploadFirmware: async (params: {
+    file: File
+    version: string
+    release_date: string
+    changelog: string
+    is_stable: boolean
+  }): Promise<FirmwareVersion> => {
+    const fd = new FormData()
+    fd.append('file', params.file)
+    fd.append('version', params.version)
+    fd.append('release_date', params.release_date)
+    fd.append('changelog', params.changelog)
+    fd.append('is_stable', String(params.is_stable))
+    return apiClient.postFormData<FirmwareVersion>('/api/v1/firmware/upload', fd)
+  },
+
+  getCurrentUser: async (): Promise<CurrentUser> => {
+    return apiClient.get<CurrentUser>('/api/v1/auth/me')
+  },
+
+  // ── Verification Sessions ─────────────────────────────────────────────────
+
+  getVerificationSessions: async (filters?: { subject?: string; activity?: string }): Promise<BackendVerificationSession[]> => {
+    const params = new URLSearchParams()
+    if (filters?.subject) params.set('subject_code', filters.subject)
+    if (filters?.activity) params.set('activity_code', filters.activity)
+    const qs = params.toString()
+    return apiClient.get<BackendVerificationSession[]>(
+      qs ? `/api/v1/data-collection/sessions?${qs}` : '/api/v1/data-collection/sessions'
     )
-    return data
+  },
+
+  createVerificationSession: async (body: {
+    device_id: string
+    subject_code: string
+    activity_code: string
+    trial_no: string
+  }): Promise<BackendVerificationSession> => {
+    return apiClient.post<BackendVerificationSession>('/api/v1/data-collection/sessions', body)
+  },
+
+  submitVerificationData: async (sessionId: string, samples: number[][]): Promise<BackendVerificationSession> => {
+    return apiClient.post<BackendVerificationSession>(
+      `/api/v1/data-collection/sessions/${sessionId}/data`,
+      { session_id: sessionId, samples }
+    )
+  },
+
+  downloadVerificationFile: async (sessionId: string, filename?: string): Promise<void> => {
+    await downloadFile(
+      `${BACKEND_URL}/api/v1/data-collection/sessions/${sessionId}/download`,
+      filename ?? `${sessionId}.txt`
+    )
+  },
+
+  exportAllVerification: async (): Promise<void> => {
+    await downloadFile(
+      `${BACKEND_URL}/api/v1/data-collection/export`,
+      'verification_dataset.zip'
+    )
   },
 }

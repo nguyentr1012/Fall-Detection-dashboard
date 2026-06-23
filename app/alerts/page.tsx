@@ -4,25 +4,25 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertFilters } from '@/components/features/alerts/AlertFilters'
 import { AlertHistoryTable } from '@/components/features/alerts/AlertHistoryTable'
-import { useCombinedAlerts, useDevices } from '@/hooks/useDeviceData'
+import { useCombinedAlerts, useWearers } from '@/hooks/useDeviceData'
 import type { Alert } from '@/src/types'
 
 export default function AlertsPage() {
-  const [deviceFilter, setDeviceFilter] = useState('all')
+  const [wearerFilter, setWearerFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState('')
 
   const { data: alerts = [], isLoading: alertsLoading } = useCombinedAlerts(200)
-  const { data: devices = [] } = useDevices()
+  const { data: wearers = [] } = useWearers()
 
   const filteredAlerts = alerts.filter((a: Alert) => {
-    if (deviceFilter !== 'all' && a.deviceId !== deviceFilter) return false
+    if (wearerFilter !== 'all' && a.wearerId !== wearerFilter) return false
     if (typeFilter !== 'all' && a.type !== typeFilter) return false
     if (dateFilter && !a.timestamp.startsWith(dateFilter)) return false
     return true
   })
 
-  const unresolvedCount = alerts.filter((a) => !a.acknowledged).length
+  const unresolvedCount = alerts.filter((a: Alert) => !a.acknowledged).length
 
   return (
     <div className="p-6 space-y-6">
@@ -43,11 +43,11 @@ export default function AlertsPage() {
           <div className="flex flex-col gap-3">
             <CardTitle className="text-base">Danh sách cảnh báo</CardTitle>
             <AlertFilters
-              devices={devices}
-              deviceFilter={deviceFilter}
+              wearers={wearers}
+              wearerFilter={wearerFilter}
               typeFilter={typeFilter}
               dateFilter={dateFilter}
-              onDeviceChange={setDeviceFilter}
+              onWearerChange={setWearerFilter}
               onTypeChange={setTypeFilter}
               onDateChange={setDateFilter}
             />

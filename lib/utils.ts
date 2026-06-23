@@ -34,24 +34,3 @@ export function formatTime(seconds: number): string {
   return `${minutes}:${secs}.${deciseconds}`;
 }
 
-/**
- * Export dữ liệu accelerometer sang CSV
- * @param samples - Dữ liệu accelerometer
- * @param label - Nhãn
- * @returns Dữ liệu CSV
- */
-export function exportToCSV(samples: IMUSample[], label: string): string {
-  const header = 'timestamp,ax,ay,az,gx,gy,gz,label'
-  const rows = samples.map(s =>
-    `${s.timestamp},${s.ax},${s.ay},${s.az},${s.gx},${s.gy},${s.gz},${label}`
-  )
-  return [header, ...rows].join('\n')
-}
-
-export function downloadCSV(content: string, filename: string): void {
-  const blob = new Blob([content], { type: 'text/csv' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url; a.download = filename; a.click()
-  URL.revokeObjectURL(url)
-}

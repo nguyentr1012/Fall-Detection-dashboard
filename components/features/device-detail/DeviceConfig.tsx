@@ -1,27 +1,28 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useDevice, useUpdateDevice } from '@/hooks/useDeviceData'
+import { useDevice, useUpdateDevice, useFirmwareVersions, useTriggerFirmwareUpdate } from '@/hooks/useDeviceData'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
-import { Cpu, Wifi, Activity, Battery, Clock, Power, ShieldAlert, Gauge } from 'lucide-react'
+import { Cpu, Wifi, Activity, Battery, Clock, Power, Gauge, Download, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 
 export function DeviceConfig({ deviceId }: { deviceId: string }) {
   const { data: device, isLoading: deviceLoading } = useDevice(deviceId)
   const { mutate: updateDevice, isPending: updatingDevice } = useUpdateDevice()
+  const { data: firmwareVersions = [], isLoading: firmwareLoading } = useFirmwareVersions()
+  const { mutate: triggerOta, isPending: otaPending } = useTriggerFirmwareUpdate()
 
   const [interval, setInterval] = useState('5')
-  const [isActive, setIsActive] = useState(true)
   const [fallThreshold, setFallThreshold] = useState(0.6)
   const [fallCooldown, setFallCooldown] = useState('15')
+  const [selectedFirmwareVersion, setSelectedFirmwareVersion] = useState('')
 
   useEffect(() => {
     if (device) {
-      if (device.is_active !== undefined) setIsActive(device.is_active)
       if (device.telemetry_interval) setInterval(device.telemetry_interval.toString())
       if (device.fall_threshold !== undefined) setFallThreshold(device.fall_threshold)
       if (device.fall_cooldown !== undefined) setFallCooldown(device.fall_cooldown.toString())
@@ -52,13 +53,20 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
     })
   }
 
-  const handleToggleActive = (checked: boolean) => {
-    setIsActive(checked)
-    updateDevice({ id: deviceId, payload: { is_active: checked } }, {
-      onSuccess: () => {
-        toast.success(checked ? 'Đã bật theo dõi thiết bị' : 'Đã tạm ngưng theo dõi thiết bị')
+  const selectedFirmware = firmwareVersions.find(f => f.version === selectedFirmwareVersion)
+
+  const handleFirmwareUpdate = () => {
+    if (!selectedFirmware) return
+    triggerOta(
+      { deviceId, version: selectedFirmware.version, downloadUrl: selectedFirmware.download_url },
+      {
+        onSuccess: () => {
+          toast.success(`Đã gửi lệnh OTA v${selectedFirmware.version} — thiết bị sẽ tự khởi động lại sau khi tải xong.`)
+          setSelectedFirmwareVersion('')
+        },
+        onError: () => toast.error('Gửi lệnh OTA thất bại. Kiểm tra kết nối MQTT broker.'),
       }
-    })
+    )
   }
 
   if (deviceLoading) return <Skeleton className="h-60 w-full rounded-xl" />
@@ -195,23 +203,74 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4 text-orange-500" />
-            Trạng thái theo dõi
+            <Download className="w-4 h-4 text-blue-500" />
+            Cập nhật Firmware (OTA)
           </CardTitle>
-          <CardDescription>Tạm ngưng giám sát khi bệnh nhân không đeo thiết bị</CardDescription>
+          <CardDescription>
+            Chọn phiên bản để cập nhật qua mạng. Thiết bị sẽ tự khởi động lại sau khi flash xong.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between p-4 border border-gray-100 rounded-lg bg-gray-50/50">
-            <div>
-              <p className="font-medium text-sm text-gray-900">Cho phép theo dõi (Active Tracking)</p>
-              <p className="text-xs text-gray-500 mt-1">Khi tắt, thiết bị sẽ không gửi cảnh báo té ngã hoặc dữ liệu nhịp tim.</p>
-            </div>
-            <Switch 
-              checked={isActive} 
-              onCheckedChange={handleToggleActive} 
-              disabled={updatingDevice} 
-            />
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Phiên bản hiện tại:</span>
+            <Badge variant="outline" className="font-mono text-xs">v{device.firmwareVersion}</Badge>
           </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-700">Chọn phiên bản cập nhật</label>
+            {firmwareLoading ? (
+              <Skeleton className="h-9 w-full" />
+            ) : (
+              <Select value={selectedFirmwareVersion} onValueChange={setSelectedFirmwareVersion}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="-- Chọn phiên bản --" />
+                </SelectTrigger>
+                <SelectContent>
+                  {firmwareVersions.map(fw => (
+                    <SelectItem key={fw.version} value={fw.version}>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono">v{fw.version}</span>
+                        {fw.is_latest && <Badge className="text-[10px] px-1 py-0 h-4 bg-blue-500">Mới nhất</Badge>}
+                        {!fw.is_stable && <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4">Beta</Badge>}
+                        <span className="text-muted-foreground text-xs">{fw.release_date}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          {selectedFirmware && (
+            <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 space-y-1">
+              <p className="text-xs font-semibold text-blue-800">Thay đổi trong v{selectedFirmware.version}:</p>
+              <p className="text-xs text-blue-700">{selectedFirmware.changelog}</p>
+            </div>
+          )}
+
+          <div className="flex gap-2 items-start p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-amber-800">
+              Thiết bị sẽ tự động khởi động lại sau khi tải xong firmware (~1–3 phút). Đảm bảo pin &gt; 30% trước khi cập nhật.
+            </p>
+          </div>
+
+          <Button
+            onClick={handleFirmwareUpdate}
+            disabled={
+              !selectedFirmwareVersion ||
+              selectedFirmwareVersion === device.firmwareVersion ||
+              otaPending
+            }
+            className="w-full md:w-auto"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            {otaPending ? 'Đang gửi lệnh OTA...' : 'Cập nhật firmware'}
+          </Button>
+
+          {selectedFirmwareVersion === device.firmwareVersion && (
+            <p className="text-xs text-muted-foreground">Thiết bị đã chạy phiên bản này.</p>
+          )}
         </CardContent>
       </Card>
     </div>

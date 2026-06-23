@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
-import type { DeviceConfig, RecordingSession } from '@/src/types'
+import type { DeviceConfig } from '@/src/types'
+import type { FirmwareVersion } from '@/services/api'
 
 // Devices – poll every 60 s to refresh battery & online status (per Master Spec)
 export const useDevices = () =>
@@ -44,21 +45,29 @@ export const useCombinedAlerts = (limit = 20) => {
 }
 
 
-export const useDeviceAlerts = (deviceId: string, limit = 20) =>
-  useQuery({
-    queryKey: ['alerts', deviceId, limit],
-    queryFn: () => api.getDeviceAlerts(deviceId, limit),
-    enabled: !!deviceId,
-    refetchInterval: 30_000,
-  })
+export const useDeviceAlerts = (deviceId: string, limit = 20) => {
+  const { data: device } = useDevice(deviceId)
+  const wearerId = device?.wearerId ?? null
 
-export const useDeviceTimeline = (deviceId: string, limit = 20) =>
-  useQuery({
-    queryKey: ['timeline', deviceId, limit],
-    queryFn: () => api.getTimeline(deviceId, limit),
-    enabled: !!deviceId,
+  return useQuery({
+    queryKey: ['alerts', wearerId, limit],
+    queryFn: () => api.getWearerAlerts(wearerId!, limit),
+    enabled: !!wearerId,
     refetchInterval: 30_000,
   })
+}
+
+export const useDeviceTimeline = (deviceId: string, limit = 20) => {
+  const { data: device } = useDevice(deviceId)
+  const wearerId = device?.wearerId ?? null
+
+  return useQuery({
+    queryKey: ['timeline', wearerId, limit],
+    queryFn: () => api.getTimeline(wearerId!, limit),
+    enabled: !!wearerId,
+    refetchInterval: 30_000,
+  })
+}
 
 export const useDeviceTelemetry = (deviceId: string, limit = 50) =>
   useQuery({
@@ -95,10 +104,6 @@ export const useUpdateDeviceConfig = () => {
     onSuccess: (_, { deviceId }) => qc.invalidateQueries({ queryKey: ['config', deviceId] }),
   })
 }
-
-// Recording session (Phase 1)
-export const useSaveRecording = () =>
-  useMutation({ mutationFn: (session: RecordingSession) => api.saveRecordingSession(session) })
 
 // Wearer CRUD mutations
 export const useCreateWearer = () => {
@@ -184,6 +189,41 @@ export const useDeleteDevice = () => {
   return useMutation({
     mutationFn: (id: string) => api.deleteDevice(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['devices'] }),
+  })
+}
+
+// Firmware OTA
+export const useFirmwareVersions = () =>
+  useQuery({
+    queryKey: ['firmware', 'versions'],
+    queryFn: api.getFirmwareVersions,
+    staleTime: 5 * 60_000,
+  })
+
+export const useTriggerFirmwareUpdate = () =>
+  useMutation({
+    mutationFn: ({ deviceId, version, downloadUrl }: { deviceId: string; version: string; downloadUrl: string }) =>
+      api.triggerFirmwareUpdate(deviceId, version, downloadUrl),
+  })
+
+export const useCurrentUser = () =>
+  useQuery({
+    queryKey: ['currentUser'],
+    queryFn: api.getCurrentUser,
+    staleTime: 10 * 60_000,
+  })
+
+export const useUploadFirmware = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (params: {
+      file: File
+      version: string
+      release_date: string
+      changelog: string
+      is_stable: boolean
+    }) => api.uploadFirmware(params),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['firmware', 'versions'] }),
   })
 }
 

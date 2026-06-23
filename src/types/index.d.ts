@@ -1,5 +1,3 @@
-export type ActivityLabel ="run" | "walk" | "transition_stand_sit" | "transition_sit_lie" | "fall";
-
 export interface IMUSample{
     timestamp: number; //Unix ms
     ax: number; ay: number; az: number; //g, range [-8, 8]
@@ -16,6 +14,7 @@ export interface IMUBatch{
 export interface Alert{
     id: string;
     deviceId: string;
+    wearerId?: string | null;
     deviceName: string;
     severity: 'critical' | 'warning' | 'info';
     type: 'fall_detected' | 'low_battery' | 'connection_lost';
@@ -59,15 +58,18 @@ export interface DeviceConfig{
     heightCm?: number;   // wearer height_cm (editable)
 }
 
-export interface RecordingSession {
-    deviceId: string
-    label: ActivityLabel
-    startTimestamp: number
-    endTimestamp: number
-    sampleCount: number
-    samples: IMUSample[]
-}
-
 // Chart types (downsampled, 10Hz)
 export interface AccelChartPoint { t: number; ax: number; ay: number; az: number; svm: number }
 export interface GyroChartPoint  { t: number; gx: number; gy: number; gz: number }
+
+export interface VerificationSession {
+  id: string
+  device_id: string
+  subject_code: string   // "SV01"
+  activity_code: string  // "D01"
+  trial_no: string       // "R01"
+  sample_count: number | null
+  duration_s: number | null
+  file_path: string | null
+  created_at: string
+}

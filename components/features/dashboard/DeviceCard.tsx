@@ -91,7 +91,7 @@ export const DeviceCard = React.memo(function DeviceCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-[11px] text-gray-400">Device {deviceNum}</p>
-            {device.last_rssi !== undefined && <SignalIcon rssi={device.last_rssi} />}
+            {device.status === 'online' && device.last_rssi !== undefined && <SignalIcon rssi={device.last_rssi} />}
           </div>
           <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{device.name}</p>
           <p className="text-xs text-gray-500 truncate">{device.location}</p>

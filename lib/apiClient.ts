@@ -71,4 +71,23 @@ export const apiClient = {
 
   delete: <T>(path: string) =>
     request<T>(path, { method: 'DELETE' }),
+
+  postFormData: <T>(path: string, formData: FormData): Promise<T> => {
+    const token = getTokenFromCookie()
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    // Không set Content-Type — browser tự gắn multipart/form-data + boundary
+    return fetch(`${BACKEND_URL}${path}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const errorBody = await res.json().catch(() => ({ detail: res.statusText }))
+        throw new Error(errorBody.detail ?? `Request failed: ${res.status}`)
+      }
+      if (res.status === 204) return undefined as T
+      return res.json() as Promise<T>
+    })
+  },
 }
