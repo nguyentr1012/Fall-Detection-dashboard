@@ -7,6 +7,7 @@ import { playAlarm } from '@/lib/alarm'
 import { useAlertStore } from '@/store/useAlertStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { useTelemetryStore } from '@/store/useTelemetryStore'
+import { toast } from 'sonner'
 
 export function GlobalMqttInit() {
   const addAlert = useAlertStore((s) => s.addAlert)
@@ -21,7 +22,22 @@ export function GlobalMqttInit() {
     const client = getMqttClient()
     client.connect('global-monitor')
 
-    const offConnectionChange = client.onConnectionChange((connected) => setMqttConnected(connected))
+    // Debounce trạng thái "mất kết nối": reconnect bình thường (~3s) KHÔNG được
+    // làm badge nhấp nháy. Báo connected ngay, nhưng chỉ báo disconnected nếu mất
+    // kết nối liên tục quá DISCONNECT_GRACE_MS.
+    const DISCONNECT_GRACE_MS = 5000
+    let disconnectTimer: ReturnType<typeof setTimeout> | null = null
+    const offConnectionChange = client.onConnectionChange((connected) => {
+      if (connected) {
+        if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null }
+        setMqttConnected(true)
+      } else if (!disconnectTimer) {
+        disconnectTimer = setTimeout(() => {
+          disconnectTimer = null
+          setMqttConnected(false)
+        }, DISCONNECT_GRACE_MS)
+      }
+    })
 
     client.subscribe(
       '*',
@@ -37,9 +53,22 @@ export function GlobalMqttInit() {
           setTimeout(() => qc.invalidateQueries({ queryKey: ['alerts'] }), 1500)
         }
       },
-      (deviceId, data) => updateTelemetry(deviceId, { ...data, last_seen: Date.now() })
+      (deviceId, data) => updateTelemetry(deviceId, { ...data, last_seen: Date.now() }),
+      (deviceId, event) => {
+        // Chỉ hiện toast cảnh báo cho Pin yếu và Lỗi phần cứng, không hiện overlay còi hú
+        const title = event.event_type === 'LOW_BATTERY' ? '🔋 Pin yếu' : '🔧 Lỗi thiết bị'
+        const desc = `${deviceId}: ${event.description || event.event_type}`
+        if (event.event_type === 'LOW_BATTERY') {
+          toast.warning(title, { description: desc, duration: 6000 })
+        } else {
+          toast.error(title, { description: desc, duration: 8000 })
+        }
+        // Refetch timeline (nếu người dùng đang xem trang chi tiết có chứa timeline)
+        setTimeout(() => qc.invalidateQueries({ queryKey: ['timeline'] }), 1500)
+      }
     )
     return () => {
+      if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null }
       offConnectionChange()
       client.unsubscribe('*')
       client.disconnect() // đối xứng với connect() ở trên (ref-count)

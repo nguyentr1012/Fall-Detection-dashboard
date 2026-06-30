@@ -137,7 +137,7 @@ export function VitalsPageClient({ deviceId }: { deviceId: string }) {
                 Chưa có dữ liệu lịch sử Pin
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                 <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="timeStr" tick={{ fontSize: 10 }} minTickGap={20} />
@@ -172,7 +172,7 @@ export function VitalsPageClient({ deviceId }: { deviceId: string }) {
                 Chưa có dữ liệu sóng mạng di động
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                 <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorRssi" x1="0" y1="0" x2="0" y2="1">
@@ -185,7 +185,10 @@ export function VitalsPageClient({ deviceId }: { deviceId: string }) {
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10 }} />
                   <Tooltip
                     contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                    formatter={(v: number) => [v > 0 ? `${v} / 31` : `${v} dBm`, 'Mức sóng']}
+                    formatter={(v) => {
+                      const n = typeof v === 'number' ? v : Number(v)
+                      return [n > 0 ? `${n} / 31` : `${n} dBm`, 'Mức sóng'] as [string, string]
+                    }}
                   />
                   <Area
                     type="monotone"

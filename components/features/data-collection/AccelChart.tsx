@@ -39,7 +39,7 @@ export const AccelChart = React.memo(function AccelChart({ data }: Props) {
         <CardTitle className="text-sm font-medium">Accelerometer (g)</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={220}>
+        <ResponsiveContainer width="100%" height={220} minWidth={1}>
           <LineChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="t" hide />

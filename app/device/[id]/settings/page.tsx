@@ -19,9 +19,7 @@ export default async function DeviceSettingsPage({
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
         <DeviceSubNav deviceId={id} />
         <div className="p-6">
-          <div className="max-w-xl">
-            <DeviceConfig deviceId={id} />
-          </div>
+          <DeviceConfig deviceId={id} />
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { AlertTriangle, Phone, PhoneCall } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/services/api'
 import { useAlertStore } from '@/store/useAlertStore'
+import { useDevices } from '@/hooks/useDeviceData'
 import type { Alert } from '@/src/types'
 
 function formatRelativeTime(isoTimestamp: string): string {
@@ -23,6 +24,7 @@ interface Props {
 export function CriticalAlertBanner({ alert }: Props) {
   const qc = useQueryClient()
   const { acknowledgeAlert } = useAlertStore()
+  const { data: devices = [] } = useDevices()
 
   const { mutate: resolve, isPending } = useMutation({
     mutationFn: () => api.acknowledgeAlert(alert.id, alert.deviceId),
@@ -33,6 +35,12 @@ export function CriticalAlertBanner({ alert }: Props) {
     },
     onError: () => toast.error('Không thể cập nhật, thử lại.'),
   })
+
+  const device = devices.find(d => d.mac === alert.deviceId || d.id === alert.deviceId)
+  const deviceIdToDisplay = device?.id || alert.deviceId
+  const displayName = device?.name && device.name !== 'Chưa gán' 
+    ? `${deviceIdToDisplay} (${device.name})` 
+    : deviceIdToDisplay
 
   return (
     <div className="flex items-start gap-4 bg-red-50 border border-red-200 rounded-xl px-5 py-4">
@@ -47,7 +55,7 @@ export function CriticalAlertBanner({ alert }: Props) {
           <div>
             <h2 className="text-base font-bold text-red-700">Critical Alert: Fall Detected</h2>
             <p className="text-sm text-red-600 mt-0.5">
-              {alert.deviceId} — {alert.message || 'Potential fall incident detected. Emergency services are on standby. Caregiver alerted.'}
+              {displayName} — {alert.message || 'Potential fall incident detected. Emergency services are on standby. Caregiver alerted.'}
             </p>
           </div>
           <span className="text-xs text-red-500 whitespace-nowrap shrink-0">

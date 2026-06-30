@@ -45,6 +45,10 @@ export function ActivityHistory({ deviceId }: { deviceId: string }) {
                     <span className="text-red-600 font-bold">⚠️ {item.title}</span>
                   ) : item.type === 'TELEMETRY' ? (
                     <span className="text-blue-600">{item.title}</span>
+                  ) : item.title === 'LOW_BATTERY' ? (
+                    <span className="text-orange-500 font-medium">🔋 {item.title}</span>
+                  ) : item.title === 'HARDWARE_ERROR' ? (
+                    <span className="text-red-500 font-medium">🔧 {item.title}</span>
                   ) : (
                     <span className="text-gray-800">{item.title}</span>
                   )}

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
-import { Cpu, Wifi, Activity, Battery, Clock, Power, Gauge, Download, AlertTriangle } from 'lucide-react'
+import { Cpu, Wifi, Activity, Battery, Clock, Power, Gauge, Download, AlertTriangle, Signal } from 'lucide-react'
 import { toast } from 'sonner'
 
 export function DeviceConfig({ deviceId }: { deviceId: string }) {
@@ -16,21 +16,27 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
   const { data: firmwareVersions = [], isLoading: firmwareLoading } = useFirmwareVersions()
   const { mutate: triggerOta, isPending: otaPending } = useTriggerFirmwareUpdate()
 
-  const [interval, setInterval] = useState('5')
-  const [fallThreshold, setFallThreshold] = useState(0.6)
+  const [telemetryInterval, setTelemetryInterval] = useState('5')
+  const [fallThreshold, setFallThreshold] = useState(0.25)
   const [fallCooldown, setFallCooldown] = useState('15')
+  const [fallConfirmWindow, setFallConfirmWindow] = useState('4')
+  const [streamTimeout, setStreamTimeout] = useState('5')
+  const [rssiInterval, setRssiInterval] = useState('300')
   const [selectedFirmwareVersion, setSelectedFirmwareVersion] = useState('')
 
   useEffect(() => {
     if (device) {
-      if (device.telemetry_interval) setInterval(device.telemetry_interval.toString())
+      if (device.telemetry_interval) setTelemetryInterval(device.telemetry_interval.toString())
       if (device.fall_threshold !== undefined) setFallThreshold(device.fall_threshold)
       if (device.fall_cooldown !== undefined) setFallCooldown(device.fall_cooldown.toString())
+      if (device.fall_confirm_window !== undefined) setFallConfirmWindow(device.fall_confirm_window.toString())
+      if (device.stream_timeout !== undefined) setStreamTimeout(device.stream_timeout.toString())
+      if (device.rssi_interval !== undefined) setRssiInterval(device.rssi_interval.toString())
     }
   }, [device])
 
   const handleSaveInterval = () => {
-    updateDevice({ id: deviceId, payload: { telemetry_interval: parseInt(interval, 10) } }, {
+    updateDevice({ id: deviceId, payload: { telemetry_interval: parseInt(telemetryInterval, 10) } }, {
       onSuccess: () => {
         toast.success('Đã gửi cấu hình chu kỳ gửi dữ liệu xuống thiết bị!')
       }
@@ -49,6 +55,33 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
     updateDevice({ id: deviceId, payload: { fall_cooldown: parseInt(fallCooldown, 10) } }, {
       onSuccess: () => {
         toast.success(`Đã gửi thời gian hồi cảnh báo ngã (${fallCooldown}s) xuống thiết bị!`)
+      }
+    })
+  }
+
+  const handleSaveFallConfirmWindow = () => {
+    updateDevice({ id: deviceId, payload: { fall_confirm_window: parseInt(fallConfirmWindow, 10) } }, {
+      onSuccess: () => {
+        toast.success(`Đã gửi cửa sổ xác nhận ngã (${fallConfirmWindow}s) xuống thiết bị!`)
+      }
+    })
+  }
+
+  const handleSaveStreamTimeout = () => {
+    updateDevice({ id: deviceId, payload: { stream_timeout: parseInt(streamTimeout, 10) } }, {
+      onSuccess: () => {
+        toast.success(`Đã gửi giới hạn thời gian stream (${streamTimeout} phút) xuống thiết bị!`)
+      }
+    })
+  }
+
+  const handleSaveRssiInterval = () => {
+    const val = parseInt(rssiInterval, 10)
+    updateDevice({ id: deviceId, payload: { rssi_interval: val } }, {
+      onSuccess: () => {
+        toast.success(val === 0
+          ? 'Đã tắt đo sóng 4G RSSI trên thiết bị!'
+          : `Đã gửi chu kỳ đo sóng 4G (${val}s) xuống thiết bị!`)
       }
     })
   }
@@ -73,7 +106,7 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
   if (!device) return null
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
@@ -83,7 +116,7 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
           <CardDescription>Chi tiết phần cứng thiết bị & trạng thái hiện tại</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground flex items-center gap-1"><Wifi className="w-3 h-3"/> Device ID (MAC)</p>
               <p className="text-sm font-mono font-medium">{device.id}</p>
@@ -118,20 +151,22 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
           <div className="flex flex-col md:flex-row gap-4 items-end">
             <div className="space-y-2 flex-1">
               <label className="text-xs font-medium text-gray-700">Chu kỳ gửi dữ liệu (Data Interval)</label>
-              <Select value={interval} onValueChange={setInterval}>
+              <Select value={telemetryInterval} onValueChange={setTelemetryInterval}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Chọn chu kỳ" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">1 giây (Realtime - Tốn pin)</SelectItem>
-                  <SelectItem value="5">5 giây (Khuyên dùng)</SelectItem>
-                  <SelectItem value="10">10 giây (Tiết kiệm pin)</SelectItem>
-                  <SelectItem value="30">30 giây</SelectItem>
+                  <SelectItem value="1">1 giây</SelectItem>
+                  <SelectItem value="5">5 giây</SelectItem>
+                  <SelectItem value="15">15 giây</SelectItem>
+                  <SelectItem value="30">30 giây (Khuyên dùng)</SelectItem>
                   <SelectItem value="60">1 phút</SelectItem>
+                  <SelectItem value="120">2 phút</SelectItem>
+                  <SelectItem value="300">5 phút</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleSaveInterval} disabled={updatingDevice} className="w-full md:w-auto">Lưu chu kỳ</Button>
+            <Button onClick={handleSaveInterval} disabled={updatingDevice} className="w-full md:w-auto shrink-0">Lưu chu kỳ</Button>
           </div>
         </CardContent>
       </Card>
@@ -162,7 +197,7 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
             <span>15% — nhạy, nhiều báo nhầm</span>
             <span>95% — chắc chắn, dễ bỏ sót</span>
           </div>
-          <Button onClick={handleSaveFallThreshold} disabled={updatingDevice} className="w-full md:w-auto">
+          <Button onClick={handleSaveFallThreshold} disabled={updatingDevice} className="w-full md:w-auto shrink-0">
             Lưu ngưỡng
           </Button>
         </CardContent>
@@ -193,8 +228,108 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleSaveFallCooldown} disabled={updatingDevice} className="w-full md:w-auto">
+            <Button onClick={handleSaveFallCooldown} disabled={updatingDevice} className="w-full md:w-auto shrink-0">
               Lưu thời gian
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Clock className="w-4 h-4 text-teal-500" />
+            Cửa sổ xác nhận ngã
+          </CardTitle>
+          <CardDescription>Sau khi AI phát hiện ngã, thiết bị chờ N giây để xác nhận tư thế nằm im — loại bỏ báo giả mà không bỏ sót ngã thật.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col md:flex-row gap-4 items-end">
+            <div className="space-y-2 flex-1">
+              <label className="text-xs font-medium text-gray-700">Cửa sổ xác nhận (giây)</label>
+              <Select value={fallConfirmWindow} onValueChange={setFallConfirmWindow}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Chọn thời gian" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 giây (Rất nhanh)</SelectItem>
+                  <SelectItem value="2">2 giây</SelectItem>
+                  <SelectItem value="3">3 giây</SelectItem>
+                  <SelectItem value="4">4 giây (Mặc định)</SelectItem>
+                  <SelectItem value="5">5 giây</SelectItem>
+                  <SelectItem value="8">8 giây</SelectItem>
+                  <SelectItem value="10">10 giây</SelectItem>
+                  <SelectItem value="15">15 giây (Chắc chắn)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleSaveFallConfirmWindow} disabled={updatingDevice} className="w-full md:w-auto shrink-0">
+              Lưu thời gian
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Activity className="w-4 h-4 text-rose-500" />
+            Giới hạn thời gian Stream IMU
+          </CardTitle>
+          <CardDescription>Thời gian tự động ngắt luồng stream IMU liên tục để tiết kiệm pin và băng thông.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col md:flex-row gap-4 items-end">
+            <div className="space-y-2 flex-1">
+              <label className="text-xs font-medium text-gray-700">Tự động ngắt sau (phút)</label>
+              <Select value={streamTimeout} onValueChange={setStreamTimeout}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Chọn thời gian" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2">2 phút</SelectItem>
+                  <SelectItem value="5">5 phút (Mặc định)</SelectItem>
+                  <SelectItem value="10">10 phút</SelectItem>
+                  <SelectItem value="15">15 phút</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleSaveStreamTimeout} disabled={updatingDevice} className="w-full md:w-auto shrink-0">
+              Lưu thời gian
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Signal className="w-4 h-4 text-sky-500" />
+            Chu kỳ đo sóng 4G (RSSI)
+          </CardTitle>
+          <CardDescription>
+            Mỗi lần đo RSSI 4G làm gián đoạn kết nối ~15-20s (thoát PPP → AT+CSQ → nối lại). Chọn <strong>Tắt</strong> khi triển khai thực tế để bảo vệ đường cảnh báo ngã.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col md:flex-row gap-4 items-end">
+            <div className="space-y-2 flex-1">
+              <label className="text-xs font-medium text-gray-700">Chu kỳ đo sóng</label>
+              <Select value={rssiInterval} onValueChange={setRssiInterval}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Chọn chu kỳ" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Tắt (0) — Khuyên dùng khi deploy</SelectItem>
+                  <SelectItem value="60">60 giây</SelectItem>
+                  <SelectItem value="120">120 giây</SelectItem>
+                  <SelectItem value="300">300 giây (Mặc định)</SelectItem>
+                  <SelectItem value="600">600 giây</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleSaveRssiInterval} disabled={updatingDevice} className="w-full md:w-auto shrink-0">
+              Lưu chu kỳ
             </Button>
           </div>
         </CardContent>
@@ -262,7 +397,7 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
               selectedFirmwareVersion === device.firmwareVersion ||
               otaPending
             }
-            className="w-full md:w-auto"
+            className="w-full md:w-auto shrink-0"
           >
             <Download className="w-4 h-4 mr-2" />
             {otaPending ? 'Đang gửi lệnh OTA...' : 'Cập nhật firmware'}

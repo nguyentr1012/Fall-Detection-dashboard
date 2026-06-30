@@ -69,7 +69,7 @@ export function DevicesTable({ devices, wearers, isLoading, onEdit }: Props) {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Device ID (MAC)</TableHead>
+          <TableHead>Device ID</TableHead>
           <TableHead>Trạng thái / Fw</TableHead>
           <TableHead>Người đeo</TableHead>
           <TableHead className="text-right">Hành động</TableHead>
@@ -79,7 +79,14 @@ export function DevicesTable({ devices, wearers, isLoading, onEdit }: Props) {
         {devices.map((device) => {
           return (
             <TableRow key={device.id}>
-              <TableCell className="font-medium text-xs font-mono">{device.id}</TableCell>
+              <TableCell className="font-mono text-xs">
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-medium">{device.id}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    MAC: {device.mac ?? '—'}
+                  </span>
+                </div>
+              </TableCell>
               <TableCell>
                 <div className="flex flex-col gap-1 items-start">
                   <Badge variant={device.status === 'online' ? 'default' : 'secondary'} className={device.status === 'online' ? 'bg-emerald-500 hover:bg-emerald-600' : ''}>

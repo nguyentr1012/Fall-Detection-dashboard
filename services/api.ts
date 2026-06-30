@@ -56,6 +56,7 @@ export interface BackendTimelineEntry {
 
 interface BackendDevice {
   device_id: string
+  mac?: string | null
   firmware_version: string | null
   is_active: boolean
   current_wearer_id: string | null
@@ -68,6 +69,8 @@ interface BackendDevice {
   telemetry_interval?: number
   fall_threshold?: number
   fall_cooldown?: number
+  fall_confirm_window?: number
+  rssi_interval?: number
   last_rssi?: number
 }
 
@@ -88,12 +91,13 @@ interface BackendAlert {
 function mapDevice(d: BackendDevice): Device {
   return {
     id: d.device_id,
+    mac: d.mac ?? null,
     name: d.wearer?.full_name ?? 'Chưa gán',
     model: 'MPU-6050',
     status: d.is_online ? 'online' : 'offline',
     lastSeen: d.last_online ?? d.updated_at,
     lastAlert: null,
-    firmwareVersion: d.firmware_version ?? '1.0.0',
+    firmwareVersion: d.firmware_version ?? '—',
     location: d.device_id,
     wearerId: d.current_wearer_id ?? null,
     batteryLevel: d.battery_pct,
@@ -101,6 +105,8 @@ function mapDevice(d: BackendDevice): Device {
     telemetry_interval: d.telemetry_interval,
     fall_threshold: d.fall_threshold,
     fall_cooldown: d.fall_cooldown,
+    fall_confirm_window: d.fall_confirm_window,
+    rssi_interval: d.rssi_interval,
     last_rssi: d.last_rssi,
   }
 }
@@ -176,7 +182,7 @@ export const api = {
     return mapDevice(data)
   },
 
-  updateDevice: async (deviceId: string, payload: { is_active?: boolean; firmware_version?: string; telemetry_interval?: number; fall_threshold?: number; fall_cooldown?: number }): Promise<Device> => {
+  updateDevice: async (deviceId: string, payload: { is_active?: boolean; firmware_version?: string; telemetry_interval?: number; fall_threshold?: number; fall_cooldown?: number; fall_confirm_window?: number; stream_timeout?: number; rssi_interval?: number }): Promise<Device> => {
     const data = await apiClient.put<BackendDevice>(`/api/v1/devices/${deviceId}`, payload)
     return mapDevice(data)
   },
@@ -279,7 +285,7 @@ export const api = {
       deviceId: device.device_id,
       name: device.wearer?.full_name ?? 'Chưa gán',
       samplingRate: 100,
-      fallThreshold: device.fall_threshold ?? 0.6,
+      fallThreshold: device.fall_threshold ?? 0.25,
       transmitInterval: 500,
       alertEnabled: true,
       wearerName: device.wearer?.full_name,
@@ -371,6 +377,17 @@ export const api = {
       `/api/v1/data-collection/sessions/${sessionId}/data`,
       { session_id: sessionId, samples }
     )
+  },
+
+  updateVerificationTrial: async (sessionId: string, trialNo: string): Promise<BackendVerificationSession> => {
+    return apiClient.patch<BackendVerificationSession>(
+      `/api/v1/data-collection/sessions/${sessionId}`,
+      { trial_no: trialNo }
+    )
+  },
+
+  deleteVerificationSession: async (sessionId: string): Promise<void> => {
+    await apiClient.delete<void>(`/api/v1/data-collection/sessions/${sessionId}`)
   },
 
   downloadVerificationFile: async (sessionId: string, filename?: string): Promise<void> => {

@@ -23,10 +23,27 @@ export function DistanceChart({ data, isLoading }: Props) {
   const [isMounted, setIsMounted] = useState(false)
   useEffect(() => setIsMounted(true), [])
 
-  const chartData = data.map((d) => ({
-    date: d?.date ? d.date.slice(5) : '',
-    'km': d?.distance_km != null ? Number(d.distance_km.toFixed(2)) : 0,
-  }))
+  // Build a continuous date range and fill missing dates with 0
+  const chartData = (() => {
+    if (!data.length) return []
+    // Sort by date ascending
+    const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date))
+    // Build a date set for quick lookup
+    const dateMap = new Map(sorted.map(d => [d.date, d]))
+    // Find the full range from first to last date
+    const start = new Date(sorted[0].date + 'T00:00:00')
+    const end = new Date(sorted[sorted.length - 1].date + 'T00:00:00')
+    const result: { date: string; km: number }[] = []
+    for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const key = d.toISOString().slice(0, 10)
+      const entry = dateMap.get(key)
+      result.push({
+        date: key.slice(5), // MM-DD
+        km: entry?.distance_km != null ? Number(entry.distance_km.toFixed(2)) : 0,
+      })
+    }
+    return result
+  })()
 
   return (
     <Card>
@@ -43,7 +60,7 @@ export function DistanceChart({ data, isLoading }: Props) {
             Chưa có dữ liệu quãng đường
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={200} minWidth={1}>
             <LineChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="date" tick={{ fontSize: 11 }} />

@@ -16,6 +16,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import { api } from '@/services/api'
 import { useAlertStore } from '@/store/useAlertStore'
+import { useDevices } from '@/hooks/useDeviceData'
 import type { Alert } from '@/src/types'
 
 const TYPE_LABEL: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -33,6 +34,7 @@ export function AlertHistoryTable({ alerts, isLoading }: Props) {
   const [ackingIds, setAckingIds] = useState<Set<string>>(new Set())
   const acknowledgeAlert = useAlertStore((s) => s.acknowledgeAlert)
   const qc = useQueryClient()
+  const { data: devices = [] } = useDevices()
 
   const handleAck = async (alertId: string, deviceId?: string) => {
     setAckingIds((s) => new Set(s).add(alertId))
@@ -79,12 +81,18 @@ export function AlertHistoryTable({ alerts, isLoading }: Props) {
         <TableBody>
           {alerts.map((alert) => {
             const typeInfo = TYPE_LABEL[alert.type] ?? { label: alert.type, icon: null }
+            const device = devices.find(d => d.mac === alert.deviceId || d.id === alert.deviceId)
+            const deviceIdToDisplay = device?.id || alert.deviceId
+            const displayName = device?.name && device.name !== 'Chưa gán' 
+              ? `${deviceIdToDisplay} (${device.name})` 
+              : deviceIdToDisplay
+
             return (
               <TableRow key={alert.id}>
                 <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
                   {new Date(alert.timestamp).toLocaleString('vi-VN')}
                 </TableCell>
-                <TableCell className="font-mono text-xs">{alert.deviceId}</TableCell>
+                <TableCell className="font-mono text-xs">{displayName}</TableCell>
                 <TableCell>
                   <Badge
                     variant={alert.type === 'fall_detected' ? 'destructive' : 'secondary'}

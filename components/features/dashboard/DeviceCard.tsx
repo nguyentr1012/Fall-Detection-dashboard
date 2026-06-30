@@ -1,6 +1,6 @@
 import React from 'react'
 import Link from 'next/link'
-import { Footprints, Wifi } from 'lucide-react'
+import { Footprints, Wifi, Signal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Device, Alert } from '@/src/types'
 import type { DeviceTelemetry } from '@/store/useTelemetryStore'
@@ -50,11 +50,37 @@ function BatteryBar({ level, status }: { level: number; status: DeviceStatus }) 
 }
 
 function SignalIcon({ rssi }: { rssi: number }) {
-  const color = rssi > -60 ? 'text-green-500' : rssi > -80 ? 'text-yellow-500' : 'text-red-500'
+  if (rssi === 0 || rssi === 99) {
+    return (
+      <div className="flex items-center gap-1" title="Mất sóng">
+        <Signal className="size-3 text-red-500" />
+        <span className="text-[10px] font-medium text-red-500">Mất sóng</span>
+      </div>
+    )
+  }
+
+  const isWifi = rssi < 0;
+  let color = 'text-gray-500';
+
+  if (isWifi) {
+    if (rssi < -80) color = 'text-red-400';
+    else if (rssi < -70) color = 'text-yellow-500';
+    else if (rssi < -60) color = 'text-green-500';
+    else color = 'text-blue-500';
+  } else {
+    if (rssi <= 9) color = 'text-red-400';
+    else if (rssi <= 14) color = 'text-yellow-500';
+    else if (rssi <= 19) color = 'text-green-500';
+    else color = 'text-blue-500';
+  }
+
+  const Icon = isWifi ? Wifi : Signal;
+  const label = isWifi ? `${rssi} dBm` : `CSQ: ${rssi}`;
+
   return (
-    <div className="flex items-center gap-1" title={`${rssi} dBm`}>
-      <Wifi className={cn("size-3", color)} />
-      <span className={cn("text-[10px] font-medium", color)}>{rssi} dBm</span>
+    <div className="flex items-center gap-1" title={isWifi ? `WiFi: ${rssi} dBm` : `4G CSQ: ${rssi}/31`}>
+      <Icon className={cn("size-3", color)} />
+      <span className={cn("text-[10px] font-medium", color)}>{label}</span>
     </div>
   )
 }
@@ -91,7 +117,7 @@ export const DeviceCard = React.memo(function DeviceCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-[11px] text-gray-400">Device {deviceNum}</p>
-            {device.status === 'online' && device.last_rssi !== undefined && <SignalIcon rssi={device.last_rssi} />}
+            {device.last_rssi !== undefined && effectiveStatus !== 'offline' && <SignalIcon rssi={device.last_rssi} />}
           </div>
           <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{device.name}</p>
           <p className="text-xs text-gray-500 truncate">{device.location}</p>
@@ -161,6 +187,13 @@ export const DeviceCard = React.memo(function DeviceCard({
           className="block text-xs text-gray-600 hover:text-gray-900"
         >
           Detailed Vitals
+        </Link>
+        <Link
+          href={`/device/${device.id}/settings`}
+          onClick={e => e.stopPropagation()}
+          className="block text-xs text-purple-600 hover:underline font-medium"
+        >
+          Device Settings
         </Link>
       </div>
     </div>

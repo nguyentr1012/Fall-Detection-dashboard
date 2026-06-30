@@ -60,12 +60,31 @@ describe('GlobalMqttInit', () => {
     expect(fake.subscribe).toHaveBeenCalledWith('*', undefined, expect.any(Function), expect.any(Function))
   })
 
-  it('connectionChange → setMqttConnected trong telemetry store', () => {
+  it('connectionChange(true) → setMqttConnected(true) ngay', () => {
     renderGmi()
     act(() => fake._conn!(true))
     expect(useTelemetryStore.getState().mqttConnected).toBe(true)
-    act(() => fake._conn!(false))
-    expect(useTelemetryStore.getState().mqttConnected).toBe(false)
+  })
+
+  it('disconnect được debounce: chỉ báo false sau grace period', () => {
+    vi.useFakeTimers()
+    try {
+      renderGmi()
+      act(() => fake._conn!(true))
+      expect(useTelemetryStore.getState().mqttConnected).toBe(true)
+      // Mất kết nối thoáng qua → CHƯA báo disconnected (badge không nháy).
+      act(() => fake._conn!(false))
+      expect(useTelemetryStore.getState().mqttConnected).toBe(true)
+      // Reconnect kịp trong grace period → vẫn connected, không nháy.
+      act(() => { vi.advanceTimersByTime(3000); fake._conn!(true) })
+      expect(useTelemetryStore.getState().mqttConnected).toBe(true)
+      // Mất kết nối kéo dài quá grace (5s) → mới báo disconnected.
+      act(() => fake._conn!(false))
+      act(() => { vi.advanceTimersByTime(5000) })
+      expect(useTelemetryStore.getState().mqttConnected).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('telemetry callback → updateTelemetry', () => {

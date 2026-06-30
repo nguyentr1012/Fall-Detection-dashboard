@@ -9,68 +9,34 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { useRegisterDevice, useUpdateDevice } from '@/hooks/useDeviceData'
+import { useUpdateDevice } from '@/hooks/useDeviceData'
 import type { Device } from '@/src/types'
 
 interface Props {
   open: boolean
   onClose: () => void
-  mode: 'create' | 'edit'
+  mode: 'create' | 'edit'   // giữ để tương thích; thiết bị nay tự auto-provision, dialog chỉ dùng để sửa
   device?: Device | null
 }
 
-export function DeviceFormDialog({ open, onClose, mode, device }: Props) {
-  const [deviceId, setDeviceId] = useState('')
-  const [firmwareVersion, setFirmwareVersion] = useState('1.0.0')
+export function DeviceFormDialog({ open, onClose, device }: Props) {
   const [isActive, setIsActive] = useState(true)
-  const [errors, setErrors] = useState<{ deviceId?: string; firmwareVersion?: string }>({})
-
-  const registerDevice = useRegisterDevice()
   const updateDevice = useUpdateDevice()
-  const isPending = registerDevice.isPending || updateDevice.isPending
+  const isPending = updateDevice.isPending
 
   useEffect(() => {
-    if (open) {
-      setDeviceId(device?.id ?? '')
-      setFirmwareVersion(device?.firmwareVersion ?? '1.0.0')
-      setIsActive(device ? device.status === 'online' : true)
-      setErrors({})
-    }
+    if (open) setIsActive(device ? device.status === 'online' : true)
   }, [open, device])
 
-  const validate = () => {
-    const e: { deviceId?: string; firmwareVersion?: string } = {}
-    if (!deviceId.trim()) e.deviceId = 'Device ID không được để trống'
-    if (!firmwareVersion.trim()) e.firmwareVersion = 'Phiên bản Firmware không được để trống'
-    return e
-  }
-
   const handleSubmit = async () => {
-    const e = validate()
-    if (Object.keys(e).length > 0) { setErrors(e); return }
-
+    if (!device) return
     try {
-      if (mode === 'create') {
-        await registerDevice.mutateAsync({
-          device_id: deviceId.trim(),
-          firmware_version: firmwareVersion.trim(),
-          is_active: isActive,
-        })
-      } else if (device) {
-        await updateDevice.mutateAsync({
-          id: device.id,
-          payload: { 
-            firmware_version: firmwareVersion.trim(),
-            is_active: isActive 
-          },
-        })
-      }
+      await updateDevice.mutateAsync({ id: device.id, payload: { is_active: isActive } })
       onClose()
     } catch {
-      setErrors({ deviceId: 'Lỗi khi lưu. Vui lòng thử lại.' })
+      /* lỗi đã toast ở tầng api */
     }
   }
 
@@ -78,32 +44,22 @@ export function DeviceFormDialog({ open, onClose, mode, device }: Props) {
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{mode === 'create' ? 'Đăng ký thiết bị mới' : 'Chỉnh sửa thiết bị'}</DialogTitle>
+          <DialogTitle>Chỉnh sửa thiết bị</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* Thông tin định danh — chỉ đọc (thiết bị tự sinh id từ MAC khi online) */}
           <div className="space-y-1">
-            <Label htmlFor="deviceId">Device ID (MAC Address) <span className="text-red-500">*</span></Label>
-            <Input
-              id="deviceId"
-              value={deviceId}
-              onChange={(e) => setDeviceId(e.target.value)}
-              placeholder="VD: 1A:2B:3C:4D:5E:6F"
-              disabled={mode === 'edit' || isPending}
-            />
-            {errors.deviceId && <p className="text-xs text-red-500">{errors.deviceId}</p>}
+            <Label>Device ID</Label>
+            <p className="font-mono text-sm">{device?.id ?? '—'}</p>
           </div>
-
           <div className="space-y-1">
-            <Label htmlFor="firmwareVersion">Phiên bản Firmware <span className="text-red-500">*</span></Label>
-            <Input
-              id="firmwareVersion"
-              value={firmwareVersion}
-              onChange={(e) => setFirmwareVersion(e.target.value)}
-              placeholder="1.0.0"
-              disabled={isPending}
-            />
-            {errors.firmwareVersion && <p className="text-xs text-red-500">{errors.firmwareVersion}</p>}
+            <Label>MAC (khóa MQTT)</Label>
+            <p className="font-mono text-sm text-muted-foreground">{device?.mac ?? '— (chưa online)'}</p>
+          </div>
+          <div className="space-y-1">
+            <Label>Phiên bản Firmware</Label>
+            <p className="font-mono text-sm text-muted-foreground">{device?.firmwareVersion ?? '—'}</p>
           </div>
 
           <div className="flex items-center justify-between space-x-2 pt-2">
@@ -123,7 +79,7 @@ export function DeviceFormDialog({ open, onClose, mode, device }: Props) {
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isPending}>Hủy</Button>
           <Button onClick={handleSubmit} disabled={isPending}>
-            {isPending ? 'Đang lưu...' : mode === 'create' ? 'Đăng ký' : 'Cập nhật'}
+            {isPending ? 'Đang lưu...' : 'Cập nhật'}
           </Button>
         </DialogFooter>
       </DialogContent>

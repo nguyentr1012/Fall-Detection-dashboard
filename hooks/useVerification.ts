@@ -30,4 +30,21 @@ export function useSubmitVerificationData() {
   })
 }
 
+export function useUpdateVerificationTrial() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ sessionId, trialNo }: { sessionId: string; trialNo: string }) =>
+      api.updateVerificationTrial(sessionId, trialNo),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['verification-sessions'] }),
+  })
+}
+
+export function useDeleteVerificationSession() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (sessionId: string) => api.deleteVerificationSession(sessionId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['verification-sessions'] }),
+  })
+}
+
 export type { BackendVerificationSession }

@@ -3,7 +3,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useDevices, useSendDeviceCommand } from '@/hooks/useDeviceData'
 import { useMqtt } from '@/hooks/useMqtt'
-import { useCreateVerificationSession, useSubmitVerificationData, useVerificationSessions } from '@/hooks/useVerification'
+import { useCreateVerificationSession, useSubmitVerificationData, useVerificationSessions, useUpdateVerificationTrial, useDeleteVerificationSession } from '@/hooks/useVerification'
 import { AccelChart } from '@/components/features/data-collection/AccelChart'
 import { GyroChart } from '@/components/features/data-collection/GyroChart'
 import { api } from '@/services/api'
@@ -20,13 +20,26 @@ import {
   Table, TableBody, TableCell, TableHead,
   TableHeader, TableRow,
 } from '@/components/ui/table'
-import { PlugZap, Power, PlayCircle, StopCircle, Download, Archive, Timer, User } from 'lucide-react'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
+} from '@/components/ui/dialog'
+import { PlugZap, Power, PlayCircle, StopCircle, Download, Archive, Timer, User, LineChart, Trash2, Pencil } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Activity metadata
 // ---------------------------------------------------------------------------
 
 type ModelLabel = 'Walk' | 'Run' | 'Idle' | 'Trans' | 'Trans + Idle' | 'Fall'
+
+interface TempSession {
+  id: string
+  subjectCode: string
+  activityCode: string
+  samples: number[][]
+  sampleCount: number
+  durationS: number
+  isSaving: boolean
+}
 
 interface ActivityInfo {
   code: string
@@ -73,8 +86,8 @@ const ACTIVITY_GROUPS = Array.from(new Set(ACTIVITIES.map(a => a.group))).map(gr
   activities: ACTIVITIES.filter(a => a.group === group),
 }))
 
-const MAX_CHART_POINTS = 300       // ~30s @ 10Hz preview
-const MAX_BUFFER_SAMPLES = 72_000  // 12 phút @ 100Hz — trần an toàn
+const MAX_CHART_POINTS = 150       // ~30s @ 5Hz preview
+const MAX_BUFFER_SAMPLES = 12_000  // 2 phút @ 100Hz — trần an toàn (auto-stop theo durationS của từng activity)
 const SUBJECT_MAP_KEY = 'verification_subject_map'  // localStorage: { [wearerId]: 'SV01' }
 
 // ---------------------------------------------------------------------------
@@ -117,6 +130,8 @@ export default function DataCollectionPage() {
   const { mutate: createSession } = useCreateVerificationSession()
   const { mutate: submitData } = useSubmitVerificationData()
   const { data: sessions = [] } = useVerificationSessions()
+  const { mutate: updateTrial } = useUpdateVerificationTrial()
+  const { mutate: deleteSession } = useDeleteVerificationSession()
 
   // Setup
   const [selectedDeviceId, setSelectedDeviceId] = useState('')
@@ -125,27 +140,38 @@ export default function DataCollectionPage() {
   const [activityCode, setActivityCode] = useState('')
 
   // Flow state (2 bước: stream preview → record)
+  const [delayCountdown, setDelayCountdown] = useState<number | null>(null)
+  const [tempSessions, setTempSessions] = useState<TempSession[]>([])
+  const delayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   const [isStreaming, setIsStreaming] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [sampleCount, setSampleCount] = useState(0)
-  const [countdown, setCountdown] = useState(0)
-  const [elapsedS, setElapsedS] = useState(0)
+  const elapsedS = sampleCount / 100
 
   // Chart data
   const [accelData, setAccelData] = useState<AccelChartPoint[]>([])
   const [gyroData, setGyroData] = useState<GyroChartPoint[]>([])
+  const [previewTempId, setPreviewTempId] = useState<string | null>(null)
+
+  // Đổi tên trial cho session đã lưu DB
+  const [renameTarget, setRenameTarget] = useState<{ id: string; label: string } | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [renaming, setRenaming] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // Refs (tránh re-render 100Hz)
   const recordBuffer = useRef<number[][]>([])
   const isRecordingRef = useRef(false)
-  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const { lastBatch } = useMqtt(selectedDeviceId || null)
-
+  // MQTT topics dùng MAC (eldercare/{mac}/...) → phải truyền MAC cho useMqtt
+  // để callback map khớp với deviceId extract từ topic.
   const mountedDevices = devices.filter(d => d.wearerId != null)
   const selectedDevice = mountedDevices.find(d => d.id === selectedDeviceId)
+  const selectedDeviceMac = selectedDevice?.mac ?? null
+  const { lastBatch } = useMqtt(selectedDeviceMac)
+
   const selectedWearerId = selectedDevice?.wearerId ?? null
   const activityInfo = ACTIVITIES.find(a => a.code === activityCode)
   const trialNo = activityCode && subjectCode ? nextTrialNo(sessions, subjectCode, activityCode) : 'R01'
@@ -164,8 +190,8 @@ export default function DataCollectionPage() {
   }, [])
 
   const clearTimers = useCallback(() => {
-    if (countdownTimerRef.current) { clearInterval(countdownTimerRef.current); countdownTimerRef.current = null }
-    if (elapsedTimerRef.current)   { clearInterval(elapsedTimerRef.current);   elapsedTimerRef.current = null }
+    if (delayTimerRef.current) { clearInterval(delayTimerRef.current); delayTimerRef.current = null }
+    setDelayCountdown(null)
   }, [])
 
   // Đổi thiết bị → reset toàn bộ stream/record + nạp mã SV của người đeo
@@ -176,8 +202,6 @@ export default function DataCollectionPage() {
     setIsRecording(false)
     setSessionId(null)
     setSampleCount(0)
-    setCountdown(0)
-    setElapsedS(0)
     setAccelData([])
     setGyroData([])
     recordBuffer.current = []
@@ -194,7 +218,7 @@ export default function DataCollectionPage() {
   useEffect(() => {
     if (!lastBatch || !isStreaming) return
 
-    const downsampled = downsample(lastBatch.samples, 10)
+    const downsampled = downsample(lastBatch.samples, 20)
 
     setAccelData(prev => [
       ...prev,
@@ -217,7 +241,7 @@ export default function DataCollectionPage() {
       setSampleCount(recordBuffer.current.length)
 
       if (recordBuffer.current.length >= MAX_BUFFER_SAMPLES) {
-        toast.warning('Đã đạt giới hạn buffer (12 phút), tự động kết thúc thu.')
+        toast.warning('Đã đạt giới hạn buffer (2 phút), tự động kết thúc thu.')
         handleStopRecord()
       }
     }
@@ -239,39 +263,32 @@ export default function DataCollectionPage() {
   }, [selectedDeviceId, sendCommand])
 
   // ── Bước 2: Bắt đầu ghi → tạo session + buffer (stream đã chạy) ───────────
+  const startActualRecording = useCallback(() => {
+    const currentActivityInfo = ACTIVITIES.find(a => a.code === activityCode)
+    recordBuffer.current = []
+    setSampleCount(0)
+    isRecordingRef.current = true
+    setIsRecording(true)
+
+    toast.info(`Đang ghi: ${activityCode} — ${currentActivityInfo?.desc ?? ''}`)
+  }, [activityCode])
+
   const handleStartRecord = useCallback(() => {
     if (!isStreaming || !selectedDeviceId || !activityCode || !subjectCode) return
+    setDelayCountdown(5)
+    delayTimerRef.current = setInterval(() => {
+      setDelayCountdown(prev => {
+        if (prev === null) return null
+        if (prev <= 1) {
+          if (delayTimerRef.current) clearInterval(delayTimerRef.current)
+          startActualRecording()
+          return null
+        }
+        return prev - 1
+      })
+    }, 1000)
+  }, [isStreaming, selectedDeviceId, activityCode, subjectCode, startActualRecording])
 
-    const currentTrialNo = trialNo
-    const currentActivityInfo = activityInfo
-
-    createSession(
-      { device_id: selectedDeviceId, subject_code: subjectCode, activity_code: activityCode, trial_no: currentTrialNo },
-      {
-        onSuccess: (session) => {
-          setSessionId(session.id)
-          recordBuffer.current = []
-          setSampleCount(0)
-          isRecordingRef.current = true
-          setIsRecording(true)
-
-          if (currentActivityInfo) {
-            setCountdown(currentActivityInfo.durationS)
-            countdownTimerRef.current = setInterval(() => {
-              setCountdown(prev => Math.max(0, prev - 1))
-            }, 1000)
-          }
-          setElapsedS(0)
-          elapsedTimerRef.current = setInterval(() => setElapsedS(prev => prev + 1), 1000)
-
-          toast.info(`Đang ghi: ${activityCode} — ${currentActivityInfo?.desc ?? ''}`)
-        },
-        onError: (err) => toast.error(`Lỗi tạo session: ${(err as Error).message}`),
-      }
-    )
-  }, [isStreaming, selectedDeviceId, activityCode, subjectCode, trialNo, activityInfo, createSession])
-
-  // ── Kết thúc ghi → submit data, GIỮ stream để thu trial tiếp ──────────────
   const handleStopRecord = useCallback(() => {
     if (!isRecordingRef.current) return
 
@@ -281,28 +298,126 @@ export default function DataCollectionPage() {
 
     const snapshot = [...recordBuffer.current]
     recordBuffer.current = []
-    const currentSessionId = sessionId
 
     setSessionId(null)
     setSampleCount(0)
-    setCountdown(0)
-    setElapsedS(0)
 
-    if (!currentSessionId) return
+    if (snapshot.length === 0) {
+      toast.warning('Không có dữ liệu (0 samples)')
+      return
+    }
 
-    submitData(
-      { sessionId: currentSessionId, samples: snapshot },
-      {
-        onSuccess: () => {
-          const durationS = (snapshot.length / 100).toFixed(1)
-          toast.success(`Đã lưu ${snapshot.length.toLocaleString()} samples (${durationS}s)`)
-        },
-        onError: (err) => toast.error(`Lỗi lưu data: ${(err as Error).message}`),
+    const durationS = snapshot.length / 100
+    const newTemp: TempSession = {
+      id: Math.random().toString(36).substr(2, 9),
+      subjectCode,
+      activityCode,
+      samples: snapshot,
+      sampleCount: snapshot.length,
+      durationS,
+      isSaving: false
+    }
+    setTempSessions(prev => [...prev, newTemp])
+    setPreviewTempId(newTemp.id)
+    toast.success(`Đã thu xong mẫu tạm (${durationS.toFixed(1)}s).`)
+  }, [clearTimers, subjectCode, activityCode])
+
+  const handleSaveTempSession = useCallback((tempId: string) => {
+    const temp = tempSessions.find(t => t.id === tempId)
+    if (!temp) return
+    if (!selectedDeviceId) {
+      toast.error('Vui lòng chọn thiết bị trước khi lưu lên server.')
+      return
+    }
+    
+    setTempSessions(prev => prev.map(t => t.id === tempId ? { ...t, isSaving: true } : t))
+    
+    const currentTrialNo = nextTrialNo(sessions, temp.subjectCode, temp.activityCode)
+
+    createSession({
+      device_id: selectedDeviceId,
+      subject_code: temp.subjectCode,
+      activity_code: temp.activityCode,
+      trial_no: currentTrialNo
+    }, {
+      onSuccess: (session) => {
+        submitData({
+          sessionId: session.id,
+          samples: temp.samples
+        }, {
+          onSuccess: () => {
+            setTempSessions(prev => prev.filter(t => t.id !== tempId))
+            toast.success(`Đã lưu thành công lên server: ${temp.activityCode}_${temp.subjectCode}_${currentTrialNo}`)
+          },
+          onError: (err) => {
+            toast.error(`Lỗi upload data: ${(err as Error).message}`)
+            setTempSessions(prev => prev.map(t => t.id === tempId ? { ...t, isSaving: false } : t))
+          }
+        })
+      },
+      onError: (err) => {
+        toast.error(`Lỗi tạo session: ${(err as Error).message}`)
+        setTempSessions(prev => prev.map(t => t.id === tempId ? { ...t, isSaving: false } : t))
       }
-    )
+    })
+  }, [tempSessions, createSession, submitData, selectedDeviceId, sessions])
 
-    if (snapshot.length === 0) toast.warning('Không có dữ liệu (0 samples)')
-  }, [sessionId, clearTimers, submitData])
+  const handleDownloadTempSession = useCallback((tempId: string) => {
+    const temp = tempSessions.find(t => t.id === tempId)
+    if (!temp) return
+    const currentTrialNo = nextTrialNo(sessions, temp.subjectCode, temp.activityCode)
+    const content = temp.samples.map(row => row.map(v => v.toFixed(6)).join(',')).join('\n')
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${temp.activityCode}_${temp.subjectCode}_${currentTrialNo}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [tempSessions, sessions])
+
+  // ── Data tạm: xóa khỏi danh sách (chỉ FE, chưa đụng server) ───────────────
+  const handleDeleteTempSession = useCallback((tempId: string) => {
+    setTempSessions(prev => prev.filter(t => t.id !== tempId))
+    setPreviewTempId(prev => (prev === tempId ? null : prev))
+    toast.info('Đã xóa mẫu tạm.')
+  }, [])
+
+  // ── Data DB: xóa hẳn session + file trên server ───────────────────────────
+  const handleDeleteSession = useCallback((session: typeof sessions[number]) => {
+    const name = `${session.activity_code}_${session.subject_code}_${session.trial_no}`
+    if (!window.confirm(`Xóa vĩnh viễn "${name}" (cả file trên server)?`)) return
+    setDeletingId(session.id)
+    deleteSession(session.id, {
+      onSuccess: () => toast.success(`Đã xóa: ${name}`),
+      onError: (err) => toast.error(`Lỗi xóa: ${(err as Error).message}`),
+      onSettled: () => setDeletingId(null),
+    })
+  }, [deleteSession])
+
+  // ── Data DB: mở dialog đổi trial_no ───────────────────────────────────────
+  const openRenameDialog = useCallback((session: typeof sessions[number]) => {
+    setRenameTarget({
+      id: session.id,
+      label: `${session.activity_code}_${session.subject_code}`,
+    })
+    setRenameValue(session.trial_no)
+  }, [])
+
+  const handleConfirmRename = useCallback(() => {
+    if (!renameTarget) return
+    const next = renameValue.trim().toUpperCase()
+    if (!next) { toast.error('Trial không được rỗng.'); return }
+    setRenaming(true)
+    updateTrial({ sessionId: renameTarget.id, trialNo: next }, {
+      onSuccess: () => {
+        toast.success(`Đã đổi tên thành ${renameTarget.label}_${next}`)
+        setRenameTarget(null)
+      },
+      onError: (err) => toast.error(`Lỗi đổi tên: ${(err as Error).message}`),
+      onSettled: () => setRenaming(false),
+    })
+  }, [renameTarget, renameValue, updateTrial])
 
   // ── Ngắt kết nối → dừng ghi (nếu đang) + tắt stream ───────────────────────
   const handleDisconnect = useCallback(() => {
@@ -317,16 +432,35 @@ export default function DataCollectionPage() {
 
   useEffect(() => () => clearTimers(), [clearTimers])
 
+  useEffect(() => {
+    if (isRecording && activityInfo && elapsedS >= activityInfo.durationS) {
+      toast.info(`Đã thu đủ ${activityInfo.durationS}s data, tự động cắt phiên stream.`)
+      handleDisconnect()
+    }
+  }, [elapsedS, isRecording, activityInfo, handleDisconnect])
+
+  // Watchdog timer: Nếu đang stream mà bị ngắt tín hiệu MQTT quá 3s (do firmware cắt cơm)
+  useEffect(() => {
+    if (!isStreaming) return
+    const tid = setTimeout(() => {
+      if (isStreaming) {
+        if (isRecordingRef.current) {
+          toast.error('Firmware đã ngắt kết nối stream! Tự động dừng thu và lưu tạm.')
+        } else {
+          toast.error('Mất tín hiệu stream từ thiết bị!')
+        }
+        handleDisconnect()
+      }
+    }, 3000)
+    return () => clearTimeout(tid)
+  }, [lastBatch, isStreaming, handleDisconnect])
+
   const canRecord = isStreaming && !isRecording && !!activityCode && !!subjectCode
 
   return (
     <div className="p-4 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Thu Data Verification</h1>
-          <p className="text-sm text-gray-500">Verify model fall detection v30_optimize — xuất raw .txt định dạng SisFall</p>
-        </div>
+      <div className="flex items-center justify-end flex-wrap gap-2">
         <Button
           variant="outline"
           size="sm"
@@ -449,7 +583,15 @@ export default function DataCollectionPage() {
             )}
 
             {/* Recording status */}
-            {isRecording && activityInfo && (
+            {delayCountdown !== null && (
+              <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-4 space-y-2 text-center">
+                <p className="text-sm font-semibold text-yellow-800">Chuẩn bị thu dữ liệu...</p>
+                <p className="text-4xl font-bold text-yellow-600">{delayCountdown}</p>
+                <p className="text-xs text-yellow-700">Vui lòng vào tư thế sẵn sàng</p>
+              </div>
+            )}
+
+            {isRecording && activityInfo && delayCountdown === null && (
               <div className="rounded-lg bg-red-50 border border-red-200 p-3 space-y-2 text-xs">
                 <div className="flex items-center gap-2">
                   <span className="size-2 rounded-full bg-red-500 animate-pulse inline-block" />
@@ -459,14 +601,14 @@ export default function DataCollectionPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-red-600">Đã thu</span>
-                  <span className="font-mono font-bold text-red-700">{elapsedS}s</span>
+                  <span className="font-mono font-bold text-red-700">{elapsedS.toFixed(1)}s</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-red-600 flex items-center gap-1">
                     <Timer className="size-3" />Còn lại (gợi ý)
                   </span>
-                  <span className={`font-mono font-bold ${countdown <= 5 ? 'text-red-700 text-sm' : 'text-gray-700'}`}>
-                    {countdown > 0 ? `${countdown}s` : 'Hết giờ gợi ý'}
+                  <span className={`font-mono font-bold ${Math.max(0, activityInfo.durationS - elapsedS) <= 5 ? 'text-red-700 text-sm' : 'text-gray-700'}`}>
+                    {Math.max(0, activityInfo.durationS - Math.floor(elapsedS))}s
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -495,10 +637,18 @@ export default function DataCollectionPage() {
                 </Button>
               ) : (
                 <>
-                  {!isRecording ? (
+                  {!isRecording && delayCountdown === null ? (
                     <Button className="w-full" onClick={handleStartRecord} disabled={!canRecord}>
                       <PlayCircle className="size-4 mr-1.5" />
-                      Bắt đầu ghi
+                      Bắt đầu ghi (sau 5s)
+                    </Button>
+                  ) : delayCountdown !== null ? (
+                    <Button variant="destructive" className="w-full" onClick={() => {
+                        if (delayTimerRef.current) clearInterval(delayTimerRef.current)
+                        setDelayCountdown(null)
+                    }}>
+                      <StopCircle className="size-4 mr-1.5" />
+                      Hủy chuẩn bị
                     </Button>
                   ) : (
                     <Button variant="destructive" className="w-full" onClick={handleStopRecord}>
@@ -554,11 +704,13 @@ export default function DataCollectionPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium">
             Lịch sử phiên thu
-            <span className="ml-2 text-xs font-normal text-gray-400">({sessions.length} phiên)</span>
+            <span className="ml-2 text-xs font-normal text-gray-400">
+              ({sessions.length} đã lưu{tempSessions.length > 0 ? ` · ${tempSessions.length} tạm` : ''})
+            </span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0 pb-1">
-          {sessions.length === 0 ? (
+          {sessions.length === 0 && tempSessions.length === 0 ? (
             <p className="py-8 text-center text-sm text-gray-400">Chưa có phiên thu nào</p>
           ) : (
             <div className="overflow-x-auto">
@@ -571,10 +723,78 @@ export default function DataCollectionPage() {
                     <TableHead className="text-right w-20">Samples</TableHead>
                     <TableHead className="text-right w-20">Thời gian</TableHead>
                     <TableHead className="w-20">Trạng thái</TableHead>
-                    <TableHead className="w-10"></TableHead>
+                    <TableHead className="w-32 text-right">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {tempSessions.map((t, idx) => {
+                    const info = ACTIVITIES.find(a => a.code === t.activityCode)
+                    return (
+                      <TableRow key={t.id} className="bg-orange-50/50">
+                        <TableCell className="font-mono text-xs">{t.subjectCode}</TableCell>
+                        <TableCell>
+                          <div>
+                            <span className={`inline-block text-[10px] font-mono font-bold px-1.5 py-0.5 rounded mr-1 ${info ? MODEL_LABEL_STYLE[info.modelLabel] : 'bg-gray-100 text-gray-500'}`}>
+                              {t.activityCode}
+                            </span>
+                            <span className="text-xs text-gray-600">{info?.desc ?? '—'}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-orange-600 font-bold">Tạm {idx+1}</TableCell>
+                        <TableCell className="text-right text-xs font-mono">
+                          {t.sampleCount.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right text-xs font-mono">
+                          {t.durationS.toFixed(1)}s
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-xs text-orange-500 font-medium">Chưa lưu</span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-[10px]"
+                              onClick={() => setPreviewTempId(t.id)}
+                            >
+                              <LineChart className="size-3 mr-1" />
+                              Xem
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-[10px]"
+                              disabled={t.isSaving}
+                              onClick={() => handleDownloadTempSession(t.id)}
+                            >
+                              <Download className="size-3 mr-1" />
+                              Tải
+                            </Button>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="h-7 px-2 text-[10px]"
+                              disabled={t.isSaving || !selectedDeviceId}
+                              onClick={() => handleSaveTempSession(t.id)}
+                            >
+                              {t.isSaving ? 'Đang lưu...' : 'Lưu'}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                              disabled={t.isSaving}
+                              title="Xóa mẫu tạm"
+                              onClick={() => handleDeleteTempSession(t.id)}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                   {sessions.map(s => {
                     const info = ACTIVITIES.find(a => a.code === s.activity_code)
                     return (
@@ -605,22 +825,43 @@ export default function DataCollectionPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {s.file_path && (
+                          <div className="flex items-center gap-0.5 justify-end">
+                            {s.file_path && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                title={`Tải ${s.activity_code}_${s.subject_code}_${s.trial_no}.txt`}
+                                onClick={() =>
+                                  api.downloadVerificationFile(
+                                    s.id,
+                                    `${s.activity_code}_${s.subject_code}_${s.trial_no}.txt`
+                                  ).catch(e => toast.error(e.message))
+                                }
+                              >
+                                <Download className="size-3.5" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
                               className="h-7 w-7 p-0"
-                              title={`Tải ${s.activity_code}_${s.subject_code}_${s.trial_no}.txt`}
-                              onClick={() =>
-                                api.downloadVerificationFile(
-                                  s.id,
-                                  `${s.activity_code}_${s.subject_code}_${s.trial_no}.txt`
-                                ).catch(e => toast.error(e.message))
-                              }
+                              title="Đổi tên trial"
+                              onClick={() => openRenameDialog(s)}
                             >
-                              <Download className="size-3.5" />
+                              <Pencil className="size-3.5" />
                             </Button>
-                          )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                              disabled={deletingId === s.id}
+                              title="Xóa session"
+                              onClick={() => handleDeleteSession(s)}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     )
@@ -631,6 +872,67 @@ export default function DataCollectionPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Preview Dialog cho Temp Session */}
+      <Dialog open={!!previewTempId} onOpenChange={(open) => !open && setPreviewTempId(null)}>
+        <DialogContent className="max-w-4xl sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Preview Mẫu Tạm</DialogTitle>
+            <DialogDescription>
+              Biểu đồ IMU (đã downsample về 5Hz) của bản ghi tạm chưa lưu.
+            </DialogDescription>
+          </DialogHeader>
+          {previewTempId && (() => {
+            const temp = tempSessions.find(t => t.id === previewTempId)
+            if (!temp) return null
+            const ds = downsample(temp.samples.map(s => ({
+              timestamp: 0, ax: s[0], ay: s[1], az: s[2], gx: s[3], gy: s[4], gz: s[5]
+            })), 20)
+            const pAccel = ds.map((s, i) => ({ t: i, ax: s.ax, ay: s.ay, az: s.az, svm: computeSVM(s.ax, s.ay, s.az) }))
+            const pGyro = ds.map((s, i) => ({ t: i, gx: s.gx, gy: s.gy, gz: s.gz }))
+            return (
+              <div className="space-y-4">
+                <AccelChart data={pAccel} />
+                <GyroChart data={pGyro} />
+              </div>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog đổi tên trial cho session đã lưu DB */}
+      <Dialog open={!!renameTarget} onOpenChange={(open) => !open && !renaming && setRenameTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Đổi tên trial</DialogTitle>
+            <DialogDescription>
+              {renameTarget
+                ? `File sẽ đổi thành ${renameTarget.label}_${(renameValue.trim().toUpperCase() || '?')}.txt`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-600">Trial mới</label>
+            <Input
+              value={renameValue}
+              maxLength={6}
+              placeholder="R01"
+              className="font-mono"
+              disabled={renaming}
+              onChange={e => setRenameValue(e.target.value.toUpperCase().replace(/\s/g, ''))}
+              onKeyDown={e => { if (e.key === 'Enter') handleConfirmRename() }}
+            />
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" disabled={renaming} onClick={() => setRenameTarget(null)}>
+                Hủy
+              </Button>
+              <Button size="sm" disabled={renaming} onClick={handleConfirmRename}>
+                {renaming ? 'Đang lưu...' : 'Lưu'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

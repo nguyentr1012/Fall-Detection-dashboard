@@ -24,7 +24,8 @@ export interface Alert{
 }
 
 export interface Device{
-    id: string;
+    id: string;          // device_id ngữ nghĩa do BE sinh: esp32_eldercare_01
+    mac?: string | null; // vân tay phần cứng = khóa topic MQTT
     name: string;        // wearer full_name, fallback "Chưa gán"
     model: string;
     status: 'online' | 'offline';
@@ -38,6 +39,9 @@ export interface Device{
     telemetry_interval?: number;
     fall_threshold?: number;
     fall_cooldown?: number;
+    fall_confirm_window?: number;
+    stream_timeout?: number;
+    rssi_interval?: number;
     last_rssi?: number;
 }
 

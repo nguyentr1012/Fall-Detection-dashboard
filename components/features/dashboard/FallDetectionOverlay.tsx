@@ -5,18 +5,27 @@ import { AlertTriangle, CheckCircle, X } from 'lucide-react'
 import { useAlertStore } from '@/store/useAlertStore'
 import { api } from '@/services/api'
 
+import { useDevices } from '@/hooks/useDeviceData'
+
 export function FallDetectionOverlay() {
   const alerts = useAlertStore((s) => s.alerts)
   const dismissed = useAlertStore((s) => s.dismissedOverlayAlertIds)
   const dismissOverlay = useAlertStore((s) => s.dismissOverlayAlert)
   const acknowledgeAlert = useAlertStore((s) => s.acknowledgeAlert)
   const qc = useQueryClient()
+  const { data: devices = [] } = useDevices()
 
   const activeAlert = alerts.find(
     (a) => a.type === 'fall_detected' && !a.acknowledged && !dismissed.includes(a.id)
   ) ?? null
 
   if (!activeAlert) return null
+
+  const device = devices.find(d => d.mac === activeAlert.deviceId || d.id === activeAlert.deviceId)
+  const deviceIdToDisplay = device?.id || activeAlert.deviceId
+  const displayName = device?.name && device.name !== 'Chưa gán' 
+    ? `${deviceIdToDisplay} (${device.name})` 
+    : deviceIdToDisplay
 
   const handleConfirm = () => {
     dismissOverlay(activeAlert.id)
@@ -51,7 +60,7 @@ export function FallDetectionOverlay() {
         <div className="bg-red-800/50 rounded-xl p-4 mb-6 space-y-2 text-sm">
           <div className="flex justify-between text-red-100">
             <span className="opacity-70">Thiết bị:</span>
-            <span className="font-semibold">{activeAlert.deviceName || activeAlert.deviceId}</span>
+            <span className="font-semibold">{displayName}</span>
           </div>
           <div className="flex justify-between text-red-100">
             <span className="opacity-70">Thông tin:</span>
