@@ -16,12 +16,12 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
   const { data: firmwareVersions = [], isLoading: firmwareLoading } = useFirmwareVersions()
   const { mutate: triggerOta, isPending: otaPending } = useTriggerFirmwareUpdate()
 
-  const [telemetryInterval, setTelemetryInterval] = useState('5')
+  const [telemetryInterval, setTelemetryInterval] = useState('30')
   const [fallThreshold, setFallThreshold] = useState(0.25)
   const [fallCooldown, setFallCooldown] = useState('15')
   const [fallConfirmWindow, setFallConfirmWindow] = useState('4')
   const [streamTimeout, setStreamTimeout] = useState('5')
-  const [rssiInterval, setRssiInterval] = useState('300')
+  const [rssiInterval, setRssiInterval] = useState('0')
   const [selectedFirmwareVersion, setSelectedFirmwareVersion] = useState('')
 
   useEffect(() => {
@@ -159,7 +159,7 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
                   <SelectItem value="1">1 giây</SelectItem>
                   <SelectItem value="5">5 giây</SelectItem>
                   <SelectItem value="15">15 giây</SelectItem>
-                  <SelectItem value="30">30 giây (Khuyên dùng)</SelectItem>
+                  <SelectItem value="30">30 giây (Mặc định)</SelectItem>
                   <SelectItem value="60">1 phút</SelectItem>
                   <SelectItem value="120">2 phút</SelectItem>
                   <SelectItem value="300">5 phút</SelectItem>
@@ -320,10 +320,10 @@ export function DeviceConfig({ deviceId }: { deviceId: string }) {
                   <SelectValue placeholder="Chọn chu kỳ" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="0">Tắt (0) — Khuyên dùng khi deploy</SelectItem>
+                  <SelectItem value="0">Tắt (0) — Mặc định khi deploy</SelectItem>
                   <SelectItem value="60">60 giây</SelectItem>
                   <SelectItem value="120">120 giây</SelectItem>
-                  <SelectItem value="300">300 giây (Mặc định)</SelectItem>
+                  <SelectItem value="300">300 giây</SelectItem>
                   <SelectItem value="600">600 giây</SelectItem>
                 </SelectContent>
               </Select>
